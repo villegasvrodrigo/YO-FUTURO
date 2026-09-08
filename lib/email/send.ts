@@ -15,7 +15,7 @@ export async function sendDailyEmail(
 
   try {
     response = await client.emails.send({
-      from: 'Yo Futuro <hola@yofuturo.app>',
+      from: process.env.RESEND_FROM_ADDRESS || 'Yo Futuro <hola@yofuturo.app>',
       to: toEmail,
       subject: 'Tu mensaje de hoy de tu yo futuro',
       text: messageContent,

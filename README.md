@@ -22,6 +22,7 @@ Copia `.env.example` a `.env.local` y rellena las seis variables:
 | `SUPABASE_SERVICE_ROLE_KEY` | Clave `service_role`, sólo servidor. La usa el cron para leer perfiles de todos los usuarios y escribir `messages` / `email_log` saltándose RLS. Nunca la expongas al cliente. |
 | `ANTHROPIC_API_KEY` | Autentica las llamadas a la API de Claude que generan el mensaje diario. |
 | `RESEND_API_KEY` | Autentica el envío de emails vía Resend. |
+| `RESEND_FROM_ADDRESS` | Opcional. Remitente de los emails (ej. `Yo Futuro <hola@tudominio.com>`). Si no se define, usa `Yo Futuro <hola@yofuturo.app>` por defecto. Útil para probar con el remitente de pruebas de Resend (`onboarding@resend.dev`) antes de verificar un dominio propio. |
 | `CRON_SECRET` | Secreto que valida el header `Authorization` de la ruta de cron, para que no sea invocable públicamente. |
 
 ## Base de datos
