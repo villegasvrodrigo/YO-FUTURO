@@ -12,6 +12,8 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
   const [goalList, setGoalList] = useState(goals);
   const [newGoal, setNewGoal] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const router = useRouter();
 
   async function saveProfile() {
@@ -52,6 +54,17 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
     router.refresh();
   }
 
+  async function deleteAccount() {
+    const res = await fetch('/api/account/delete', { method: 'POST' });
+    if (res.ok) {
+      router.push('/');
+      router.refresh();
+    } else {
+      const body = await res.json();
+      setMessage(body.error ?? 'No se pudo eliminar la cuenta');
+    }
+  }
+
   return (
     <main>
       <h1>Tu perfil</h1>
@@ -89,6 +102,22 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
       </section>
 
       <button type="button" onClick={logout}>Cerrar sesión</button>
+
+      <button type="button" onClick={() => setShowDeleteConfirm(true)}>Eliminar cuenta</button>
+      {showDeleteConfirm && (
+        <div role="dialog">
+          <p>Escribe ELIMINAR para confirmar que quieres borrar tu cuenta permanentemente.</p>
+          <input value={deleteConfirmText} onChange={(e) => setDeleteConfirmText(e.target.value)} />
+          <button
+            type="button"
+            disabled={deleteConfirmText !== 'ELIMINAR'}
+            onClick={deleteAccount}
+          >
+            Confirmar eliminación
+          </button>
+          <button type="button" onClick={() => setShowDeleteConfirm(false)}>Cancelar</button>
+        </div>
+      )}
     </main>
   );
 }
