@@ -25,4 +25,20 @@ describe('sendDailyEmail', () => {
 
     expect(result).toEqual({ providerId: null, status: 'failed', error: 'invalid domain' });
   });
+
+  it('returns failed status instead of throwing when the client rejects', async () => {
+    const fakeClient = {
+      emails: {
+        send: vi.fn().mockRejectedValue(new Error('network timeout')),
+      },
+    } as any;
+
+    const result = await sendDailyEmail('ana@example.com', 'Sigue adelante.', fakeClient);
+
+    expect(result).toEqual({
+      providerId: null,
+      status: 'failed',
+      error: 'Error: network timeout',
+    });
+  });
 });
