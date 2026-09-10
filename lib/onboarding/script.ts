@@ -8,7 +8,7 @@ export const ONBOARDING_GREETING =
 export const ONBOARDING_SCRIPT: OnboardingScriptStep[] = [
   {
     instruction:
-      'La conversación ya abrió preguntando su nombre en el saludo inicial — usa su respuesta, no lo preguntes de nuevo.',
+      `La conversación ya abrió con este saludo tuyo, que la persona ya leyó: "${ONBOARDING_GREETING}" — usa su respuesta con el nombre, no lo preguntes de nuevo, y no repitas frases como "quiero conocerte un poco" ya que eso ya se dijo ahí.`,
   },
   { instruction: 'Pregunta su edad actual.' },
   {
