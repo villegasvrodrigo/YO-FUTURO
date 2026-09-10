@@ -50,7 +50,7 @@ describe('runOnboardingTurn', () => {
     ).rejects.toThrow('Claude no devolvió una respuesta estructurada válida');
   });
 
-  it('includes every script topic in the system prompt', async () => {
+  it('includes every script step in the system prompt, in order', async () => {
     const parse = resolvingParse(okTurn());
 
     await runOnboardingTurn(
@@ -61,8 +61,35 @@ describe('runOnboardingTurn', () => {
 
     const callArgs = parse.mock.calls[0][0];
     for (const step of ONBOARDING_SCRIPT) {
-      expect(callArgs.system).toContain(step.field);
+      expect(callArgs.system).toContain(step.instruction);
     }
+  });
+
+  it('lists every required field for the done condition, excluding deliveryHour', async () => {
+    const parse = resolvingParse(okTurn());
+
+    await runOnboardingTurn(
+      [{ role: 'user', content: 'Hola' }],
+      ONBOARDING_SCRIPT,
+      fakeClient(parse)
+    );
+
+    const system = parse.mock.calls[0][0].system as string;
+    for (const field of [
+      'name',
+      'currentAge',
+      'futureSelfAge',
+      'focusArea',
+      'tone',
+      'values',
+      'goals',
+      'currentEnergySummary',
+      'blockingPattern',
+      'futureVision',
+    ]) {
+      expect(system).toContain(field);
+    }
+    expect(system).not.toContain('deliveryHour');
   });
 
   it('drops leading assistant messages so Claude always receives a user message first', async () => {
