@@ -44,6 +44,18 @@ export async function runOnboardingTurn(
     throw new Error(TURN_FAILED_MESSAGE);
   }
 
+  // TEMPORARY — investigating intermittent garbled/blank replies (reported 2026-09-10).
+  // Logs the untouched text exactly as the API returned it, before any parsing/merging
+  // on our side, so a corrupted case can be compared against what gets saved/displayed.
+  console.log(
+    '[onboarding-chat][raw]',
+    JSON.stringify({
+      stop_reason: response.stop_reason,
+      usage: response.usage,
+      content: response.content,
+    })
+  );
+
   if (!response.parsed_output) {
     throw new Error('Claude no devolvió una respuesta estructurada válida');
   }

@@ -50,6 +50,16 @@ export async function runOnboardingSynthesis(
     throw new Error(SYNTHESIS_FAILED_MESSAGE);
   }
 
+  // TEMPORARY — investigating intermittent garbled/blank replies (reported 2026-09-10).
+  console.log(
+    '[onboarding-synthesize][raw]',
+    JSON.stringify({
+      stop_reason: response.stop_reason,
+      usage: response.usage,
+      content: response.content,
+    })
+  );
+
   if (!response.parsed_output) {
     throw new Error('Claude no devolvió una respuesta estructurada válida');
   }
