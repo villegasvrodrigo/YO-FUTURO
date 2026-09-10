@@ -69,8 +69,8 @@ export default function OnboardingPage() {
         if (hasNarrative) {
           setDone(true);
         } else {
-          // The script finished last time but synthesis never completed — pick that back up.
-          await runSynthesis(progress.transcript, progress.extracted);
+          // The script finished last time but extraction/synthesis never completed — pick that back up.
+          await finalizeOnboarding(progress.transcript, progress.extracted);
         }
       }
       if (!cancelled) setLoaded(true);
@@ -119,15 +119,15 @@ export default function OnboardingPage() {
         throw new Error(message);
       }
       const result = await res.json();
-      const mergedExtracted = mergeExtracted(extracted, result.extracted);
-      setExtracted(mergedExtracted);
       const finalTranscript = [...nextTranscript, { role: 'assistant' as const, content: result.assistantReply }];
       setTranscript(finalTranscript);
       setLastFailedTranscript(null);
-      await persistProgress(finalTranscript, mergedExtracted, result.done);
-      // The script's own reply never carries the narrative results — those come from a
-      // separate, longer-running synthesis call kicked off once the script is complete.
-      if (result.done) await runSynthesis(finalTranscript, mergedExtracted);
+      await persistProgress(finalTranscript, extracted, result.finished);
+      // The turn call only ever returns plain conversational text now — the profile
+      // fields and narrative results come from two separate, dedicated calls kicked
+      // off once the script signals it's finished (via Claude's own [FIN] marker, or
+      // the safety-cap fallback inside runOnboardingTurn).
+      if (result.finished) await finalizeOnboarding(finalTranscript, extracted);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo continuar la conversación');
       // Keep the accumulated transcript so the same turn can be retried inline.
@@ -137,27 +137,18 @@ export default function OnboardingPage() {
     }
   }
 
-  async function runSynthesis(finalTranscript: ChatMessage[], baseExtracted: ExtractedProfile) {
+  // Runs once the script is finished (naturally, via the safety cap, or because the
+  // user cut it short with "Ya terminé") — extraction and synthesis are independent,
+  // both need only the finished transcript, so they run in parallel.
+  async function finalizeOnboarding(finalTranscript: ChatMessage[], baseExtracted: ExtractedProfile) {
     setSynthesizing(true);
     setSynthesisError(null);
     try {
-      const res = await fetch('/api/onboarding/synthesize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript: finalTranscript }),
-      });
-      if (!res.ok) {
-        let message = 'No se pudieron generar tus resultados';
-        try {
-          const body = await res.json();
-          message = body.error ?? message;
-        } catch {
-          // Non-JSON error body (e.g. a platform error page): keep the default message.
-        }
-        throw new Error(message);
-      }
-      const synthesis = await res.json();
-      const mergedExtracted = mergeExtracted(baseExtracted, synthesis);
+      const [extraction, synthesis] = await Promise.all([
+        fetchJson('/api/onboarding/extract', finalTranscript, 'No se pudieron extraer tus datos'),
+        fetchJson('/api/onboarding/synthesize', finalTranscript, 'No se pudieron generar tus resultados'),
+      ]);
+      const mergedExtracted = mergeExtracted(mergeExtracted(baseExtracted, extraction), synthesis);
       setExtracted(mergedExtracted);
       await persistProgress(finalTranscript, mergedExtracted, true);
       setSynthesisTranscript(null);
@@ -168,6 +159,25 @@ export default function OnboardingPage() {
     } finally {
       setSynthesizing(false);
     }
+  }
+
+  async function fetchJson(url: string, transcript: ChatMessage[], defaultErrorMessage: string) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript }),
+    });
+    if (!res.ok) {
+      let message = defaultErrorMessage;
+      try {
+        const body = await res.json();
+        message = body.error ?? message;
+      } catch {
+        // Non-JSON error body (e.g. a platform error page): keep the default message.
+      }
+      throw new Error(message);
+    }
+    return res.json();
   }
 
   async function sendMessage() {
@@ -183,9 +193,9 @@ export default function OnboardingPage() {
     await requestTurn(lastFailedTranscript);
   }
 
-  async function retrySynthesis() {
+  async function retryFinalize() {
     if (!synthesisTranscript) return;
-    await runSynthesis(synthesisTranscript, extracted);
+    await finalizeOnboarding(synthesisTranscript, extracted);
   }
 
   const hasNarrativeResults =
@@ -202,7 +212,7 @@ export default function OnboardingPage() {
   }
 
   if (synthesisError) {
-    return <SynthesisErrorScreen message={synthesisError} onRetry={retrySynthesis} />;
+    return <SynthesisErrorScreen message={synthesisError} onRetry={retryFinalize} />;
   }
 
   if (done && !resultsConfirmed && hasNarrativeResults) {
@@ -275,8 +285,9 @@ export default function OnboardingPage() {
         </div>
         <button
           type="button"
-          onClick={() => setDone(true)}
-          className="mt-3 text-sm text-mist underline underline-offset-4 transition-colors hover:text-brass"
+          onClick={() => finalizeOnboarding(transcript, extracted)}
+          disabled={sending}
+          className="mt-3 text-sm text-mist underline underline-offset-4 transition-colors hover:text-brass disabled:opacity-50"
         >
           Ya terminé, revisar mis datos
         </button>

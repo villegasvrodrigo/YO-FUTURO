@@ -70,15 +70,42 @@ describe('toClaudeMessages', () => {
       { role: 'assistant', content: 'Hola, soy tu guía.' },
       { role: 'user', content: 'Me llamo Ana' },
       { role: 'assistant', content: '¿Qué edad tienes?' },
+      { role: 'user', content: 'Tengo 25' },
     ]);
     expect(result).toEqual([
       { role: 'user', content: 'Me llamo Ana' },
       { role: 'assistant', content: '¿Qué edad tienes?' },
+      { role: 'user', content: 'Tengo 25' },
     ]);
   });
 
   it('returns an empty array when there is no user message', () => {
     expect(toClaudeMessages([{ role: 'assistant', content: 'Hola' }])).toEqual([]);
+  });
+
+  it('appends a synthetic trailing user turn when the transcript ends with an assistant message', () => {
+    // The API rejects a request whose last message isn't from the user ("assistant
+    // message prefill" error) — this happens for real whenever a finished onboarding
+    // transcript (which always ends with Claude's own closing reply) is sent to the
+    // extraction or synthesis calls.
+    const result = toClaudeMessages([
+      { role: 'user', content: 'Me llamo Ana' },
+      { role: 'assistant', content: 'Gracias por todo.' },
+    ]);
+    expect(result[result.length - 1].role).toBe('user');
+    expect(result).toEqual([
+      { role: 'user', content: 'Me llamo Ana' },
+      { role: 'assistant', content: 'Gracias por todo.' },
+      { role: 'user', content: 'Fin de la conversación.' },
+    ]);
+  });
+
+  it('does not append anything extra when the transcript already ends with a user message', () => {
+    const result = toClaudeMessages([
+      { role: 'assistant', content: 'Hola' },
+      { role: 'user', content: 'Hola de vuelta' },
+    ]);
+    expect(result).toEqual([{ role: 'user', content: 'Hola de vuelta' }]);
   });
 });
 
