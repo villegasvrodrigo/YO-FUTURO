@@ -1,26 +1,40 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --ink: #12141c;
+  --dusk: #1b1e29;
+  --dusk-2: #22252f;
+  --rule: #2c2f3d;
+  --brass: #c9a063;
+  --brass-dim: #7d6741;
+  --parchment: #ede6d8;
+  --mist: #8d8c98;
+  --sage: #8fad8c;
+  --danger: #d9776a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-dusk: var(--dusk);
+  --color-dusk-2: var(--dusk-2);
+  --color-rule: var(--rule);
+  --color-brass: var(--brass);
+  --color-brass-dim: var(--brass-dim);
+  --color-parchment: var(--parchment);
+  --color-mist: var(--mist);
+  --color-sage: var(--sage);
+  --color-danger: var(--danger);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-serif: var(--font-instrument-serif);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--ink);
+  color: var(--parchment);
+}
+
+::selection {
+  background: var(--brass-dim);
+  color: var(--parchment);
 }

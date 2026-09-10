@@ -1,0 +1,141 @@
+import { describe, it, expect, vi } from 'vitest';
+import type Anthropic from '@anthropic-ai/sdk';
+import { runOnboardingTurn } from './chat';
+import { EMPTY_EXTRACTED_PROFILE } from './extraction';
+import { ONBOARDING_SCRIPT } from './script';
+
+/** Minimal stand-in for the Anthropic client: only `messages.parse` is ever used. */
+function fakeClient(parse: ReturnType<typeof vi.fn>) {
+  return { messages: { parse } } as unknown as Anthropic;
+}
+
+function resolvingParse(parsedOutput: {
+  assistantReply: string;
+  extracted: Record<string, unknown>;
+  done: boolean;
+} | null) {
+  return vi.fn().mockResolvedValue({ parsed_output: parsedOutput });
+}
+
+// Deliberately loose: some tests feed values Claude could return but the strict
+// ExtractedProfile forbids (e.g. an out-of-enum focusArea).
+function okTurn(extracted: Record<string, unknown> = {}) {
+  return {
+    assistantReply: 'ok',
+    extracted: { ...EMPTY_EXTRACTED_PROFILE, ...extracted },
+    done: false,
+  };
+}
+
+describe('runOnboardingTurn', () => {
+  it('returns the parsed output from Claude', async () => {
+    const parse = resolvingParse({ ...okTurn(), assistantReply: '¿Cómo te llamas?' });
+
+    const result = await runOnboardingTurn(
+      [{ role: 'user', content: 'Hola' }],
+      ONBOARDING_SCRIPT,
+      fakeClient(parse)
+    );
+
+    expect(result.assistantReply).toBe('¿Cómo te llamas?');
+    expect(result.done).toBe(false);
+    expect(parse).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude-sonnet-5' }));
+  });
+
+  it('throws if Claude does not return a parsed output', async () => {
+    const parse = resolvingParse(null);
+
+    await expect(
+      runOnboardingTurn([{ role: 'user', content: 'Hola' }], ONBOARDING_SCRIPT, fakeClient(parse))
+    ).rejects.toThrow('Claude no devolvió una respuesta estructurada válida');
+  });
+
+  it('includes every script topic in the system prompt', async () => {
+    const parse = resolvingParse(okTurn());
+
+    await runOnboardingTurn(
+      [{ role: 'user', content: 'Hola' }],
+      ONBOARDING_SCRIPT,
+      fakeClient(parse)
+    );
+
+    const callArgs = parse.mock.calls[0][0];
+    for (const step of ONBOARDING_SCRIPT) {
+      expect(callArgs.system).toContain(step.field);
+    }
+  });
+
+  it('drops leading assistant messages so Claude always receives a user message first', async () => {
+    const parse = resolvingParse(okTurn());
+
+    await runOnboardingTurn(
+      [
+        { role: 'assistant', content: 'Hola, soy tu guía.' },
+        { role: 'user', content: 'Me llamo Ana' },
+        { role: 'assistant', content: '¿Qué edad tienes?' },
+        { role: 'user', content: 'Tengo 25' },
+      ],
+      ONBOARDING_SCRIPT,
+      fakeClient(parse)
+    );
+
+    const callArgs = parse.mock.calls[0][0];
+    expect(callArgs.messages[0].role).toBe('user');
+    expect(callArgs.messages).toEqual([
+      { role: 'user', content: 'Me llamo Ana' },
+      { role: 'assistant', content: '¿Qué edad tienes?' },
+      { role: 'user', content: 'Tengo 25' },
+    ]);
+  });
+
+  it('nulls out out-of-enum focusArea and tone instead of throwing', async () => {
+    const parse = resolvingParse(
+      okTurn({ focusArea: 'algo-random', tone: 'sarcastico', name: 'Ana' })
+    );
+
+    const result = await runOnboardingTurn(
+      [{ role: 'user', content: 'Hola' }],
+      ONBOARDING_SCRIPT,
+      fakeClient(parse)
+    );
+
+    expect(result.extracted.focusArea).toBeNull();
+    expect(result.extracted.tone).toBeNull();
+    expect(result.extracted.name).toBe('Ana');
+  });
+
+  it('keeps a valid focusArea and tone as-is', async () => {
+    const parse = resolvingParse(okTurn({ focusArea: 'salud', tone: 'tierno' }));
+
+    const result = await runOnboardingTurn(
+      [{ role: 'user', content: 'Hola' }],
+      ONBOARDING_SCRIPT,
+      fakeClient(parse)
+    );
+
+    expect(result.extracted.focusArea).toBe('salud');
+    expect(result.extracted.tone).toBe('tierno');
+  });
+
+  it('throws a clean user-facing error when the Claude call fails', async () => {
+    const parse = vi
+      .fn()
+      .mockRejectedValue(new Error('ZodError: invalid literal at extracted.focusArea'));
+
+    await expect(
+      runOnboardingTurn([{ role: 'user', content: 'Hola' }], ONBOARDING_SCRIPT, fakeClient(parse))
+    ).rejects.toThrow('No se pudo continuar la conversación, intenta de nuevo.');
+  });
+
+  it('asks for enough output tokens to fit a structured response', async () => {
+    const parse = resolvingParse(okTurn());
+
+    await runOnboardingTurn(
+      [{ role: 'user', content: 'Hola' }],
+      ONBOARDING_SCRIPT,
+      fakeClient(parse)
+    );
+
+    expect(parse.mock.calls[0][0].max_tokens).toBe(4096);
+  });
+});

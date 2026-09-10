@@ -21,28 +21,45 @@ export default async function HistorialPage() {
       .single();
 
     return (
-      <main>
-        <h1>Historial</h1>
-        <p>
-          {profile
-            ? emptyStateCopy(profile.delivery_hour_local, profile.timezone)
-            : 'Tu yo futuro todavía no te ha escrito.'}
-        </p>
+      <main className="flex flex-1 justify-center px-6 py-16">
+        <div className="w-full max-w-xl">
+          <h1 className="mb-6 font-serif text-3xl text-parchment">Historial</h1>
+          <div className="rounded border-t-2 border-rule bg-dusk-2 px-7 py-8">
+            <p className="font-serif text-lg italic leading-relaxed text-mist">
+              {profile
+                ? emptyStateCopy(profile.delivery_hour_local, profile.timezone)
+                : 'Tu yo futuro todavía no te ha escrito.'}
+            </p>
+          </div>
+        </div>
       </main>
     );
   }
 
   return (
-    <main>
-      <h1>Historial</h1>
-      <ul>
-        {messages.map((m) => (
-          <li key={m.id}>
-            <time>{new Date(m.generated_at).toLocaleDateString('es-MX')}</time>
-            <p>{m.content}</p>
-          </li>
-        ))}
-      </ul>
+    <main className="flex flex-1 justify-center px-6 py-16">
+      <div className="w-full max-w-xl">
+        <h1 className="mb-8 font-serif text-3xl text-parchment">Historial</h1>
+        <ul className="flex flex-col gap-5">
+          {messages.map((m) => (
+            <li
+              key={m.id}
+              className="rounded border-t-2 border-brass-dim bg-dusk-2 px-7 py-7"
+            >
+              <time className="mb-3 block font-mono text-xs uppercase tracking-[0.08em] text-mist">
+                {new Date(m.generated_at).toLocaleDateString('es-MX', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </time>
+              <p className="whitespace-pre-line font-serif text-base italic leading-relaxed text-parchment">
+                {m.content}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </div>
     </main>
   );
 }
