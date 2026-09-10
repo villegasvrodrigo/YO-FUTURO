@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { mergeExtracted, EMPTY_EXTRACTED_PROFILE, type ExtractedProfile } from './extraction';
+import {
+  mergeExtracted,
+  EMPTY_EXTRACTED_PROFILE,
+  toClaudeMessages,
+  assertValidReplyText,
+  TranscriptRequestSchema,
+  type ExtractedProfile,
+} from './extraction';
 
 describe('mergeExtracted', () => {
   it('fills in previously-unknown fields from the new extraction', () => {
@@ -54,5 +61,66 @@ describe('mergeExtracted', () => {
     };
     const merged = mergeExtracted(prev, next);
     expect(merged.blockingPattern).toBe('Evita hablar de dinero cuando se siente ansioso.');
+  });
+});
+
+describe('toClaudeMessages', () => {
+  it('drops leading assistant messages so the first message is always a user turn', () => {
+    const result = toClaudeMessages([
+      { role: 'assistant', content: 'Hola, soy tu guía.' },
+      { role: 'user', content: 'Me llamo Ana' },
+      { role: 'assistant', content: '¿Qué edad tienes?' },
+    ]);
+    expect(result).toEqual([
+      { role: 'user', content: 'Me llamo Ana' },
+      { role: 'assistant', content: '¿Qué edad tienes?' },
+    ]);
+  });
+
+  it('returns an empty array when there is no user message', () => {
+    expect(toClaudeMessages([{ role: 'assistant', content: 'Hola' }])).toEqual([]);
+  });
+});
+
+describe('assertValidReplyText', () => {
+  it('throws the given message for an empty string', () => {
+    expect(() => assertValidReplyText('', 'falló')).toThrow('falló');
+  });
+
+  it('throws the given message for a whitespace-only string', () => {
+    expect(() => assertValidReplyText('   \n ', 'falló')).toThrow('falló');
+  });
+
+  it('throws the given message when the text leaks raw JSON syntax', () => {
+    expect(() => assertValidReplyText('hola extracted:{', 'falló')).toThrow('falló');
+  });
+
+  it('throws the given message when the text leaks an internal field name', () => {
+    expect(() => assertValidReplyText('tu futureVision es clara', 'falló')).toThrow('falló');
+  });
+
+  it('does not throw for normal text', () => {
+    expect(() => assertValidReplyText('¿Cómo te llamas?', 'falló')).not.toThrow();
+  });
+});
+
+describe('TranscriptRequestSchema', () => {
+  it('accepts a well-formed transcript', () => {
+    const result = TranscriptRequestSchema.safeParse({
+      transcript: [{ role: 'user', content: 'Hola' }],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an empty transcript', () => {
+    const result = TranscriptRequestSchema.safeParse({ transcript: [] });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an invalid role', () => {
+    const result = TranscriptRequestSchema.safeParse({
+      transcript: [{ role: 'system', content: 'hola' }],
+    });
+    expect(result.success).toBe(false);
   });
 });

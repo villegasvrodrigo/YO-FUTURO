@@ -28,6 +28,9 @@ export default function OnboardingPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFailedTranscript, setLastFailedTranscript] = useState<ChatMessage[] | null>(null);
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [synthesisError, setSynthesisError] = useState<string | null>(null);
+  const [synthesisTranscript, setSynthesisTranscript] = useState<ChatMessage[] | null>(null);
 
   async function requestTurn(nextTranscript: ChatMessage[]) {
     if (sending) return;
@@ -61,15 +64,49 @@ export default function OnboardingPage() {
       }
       const result = await res.json();
       setExtracted((prev) => mergeExtracted(prev, result.extracted));
-      setTranscript([...nextTranscript, { role: 'assistant', content: result.assistantReply }]);
+      const finalTranscript = [...nextTranscript, { role: 'assistant' as const, content: result.assistantReply }];
+      setTranscript(finalTranscript);
       setLastFailedTranscript(null);
-      if (result.done) setDone(true);
+      // The script's own reply never carries the narrative results — those come from a
+      // separate, longer-running synthesis call kicked off once the script is complete.
+      if (result.done) await runSynthesis(finalTranscript);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo continuar la conversación');
       // Keep the accumulated transcript so the same turn can be retried inline.
       setLastFailedTranscript(nextTranscript);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function runSynthesis(finalTranscript: ChatMessage[]) {
+    setSynthesizing(true);
+    setSynthesisError(null);
+    try {
+      const res = await fetch('/api/onboarding/synthesize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transcript: finalTranscript }),
+      });
+      if (!res.ok) {
+        let message = 'No se pudieron generar tus resultados';
+        try {
+          const body = await res.json();
+          message = body.error ?? message;
+        } catch {
+          // Non-JSON error body (e.g. a platform error page): keep the default message.
+        }
+        throw new Error(message);
+      }
+      const synthesis = await res.json();
+      setExtracted((prev) => mergeExtracted(prev, synthesis));
+      setSynthesisTranscript(null);
+      setDone(true);
+    } catch (err) {
+      setSynthesisError(err instanceof Error ? err.message : 'No se pudieron generar tus resultados');
+      setSynthesisTranscript(finalTranscript);
+    } finally {
+      setSynthesizing(false);
     }
   }
 
@@ -86,10 +123,23 @@ export default function OnboardingPage() {
     await requestTurn(lastFailedTranscript);
   }
 
+  async function retrySynthesis() {
+    if (!synthesisTranscript) return;
+    await runSynthesis(synthesisTranscript);
+  }
+
   const hasNarrativeResults =
     extracted.currentEnergySummary !== null ||
     extracted.blockingPattern !== null ||
     extracted.futureVision !== null;
+
+  if (synthesizing) {
+    return <SynthesizingScreen />;
+  }
+
+  if (synthesisError) {
+    return <SynthesisErrorScreen message={synthesisError} onRetry={retrySynthesis} />;
+  }
 
   if (done && !resultsConfirmed && hasNarrativeResults) {
     return <ResultsScreen extracted={extracted} onContinue={() => setResultsConfirmed(true)} />;
@@ -358,6 +408,42 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
             Confirmar y empezar
           </button>
         </div>
+      </div>
+    </main>
+  );
+}
+
+function SynthesizingScreen() {
+  return (
+    <main className="flex flex-1 items-center justify-center px-6 py-16">
+      <div className="w-full max-w-md text-center">
+        <p className="mb-3 font-mono text-xs tracking-[0.14em] text-brass">TU RADIOGRAFÍA</p>
+        <h1 role="status" className="text-balance font-serif text-2xl italic text-parchment">
+          Preparando tus resultados…
+        </h1>
+        <p className="mt-3 text-sm text-mist">
+          Esto puede tardar un poco más — estamos leyendo toda la conversación con cuidado.
+        </p>
+      </div>
+    </main>
+  );
+}
+
+function SynthesisErrorScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <main className="flex flex-1 items-center justify-center px-6 py-16">
+      <div className="w-full max-w-md text-center">
+        <p className="mb-3 font-mono text-xs tracking-[0.14em] text-brass">TU RADIOGRAFÍA</p>
+        <p role="alert" className="mb-5 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+          {message}
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-lg border border-rule px-5 py-2.5 text-sm font-semibold text-parchment transition-colors hover:border-brass/60"
+        >
+          Reintentar
+        </button>
       </div>
     </main>
   );

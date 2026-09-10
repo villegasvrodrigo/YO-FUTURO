@@ -104,3 +104,62 @@ export function mergeExtracted(
   });
   return merged;
 }
+
+/**
+ * The Messages API requires messages[0].role === 'user'; the onboarding UI seeds the
+ * transcript with a scripted assistant greeting, so drop any leading assistant turns.
+ * Shared by both the per-question chat call and the narrative-synthesis call.
+ */
+export function toClaudeMessages(
+  transcript: ChatMessage[]
+): { role: 'user' | 'assistant'; content: string }[] {
+  const firstUserIndex = transcript.findIndex((m) => m.role === 'user');
+  return (firstUserIndex === -1 ? [] : transcript.slice(firstUserIndex)).map((m) => ({
+    role: m.role,
+    content: m.content,
+  }));
+}
+
+const LEAK_MARKERS = [
+  '{',
+  '}',
+  'extracted',
+  'assistantreply',
+  'currentenergysummary',
+  'blockingpattern',
+  'futurevision',
+  'focusarea',
+  'futureselfage',
+  'currentage',
+  'deliveryhour',
+];
+
+/**
+ * Rare structured-output glitch: the model's free-text reply comes back blank, or
+ * drifts into echoing its own JSON schema (raw braces, field names like "extracted")
+ * instead of staying natural language. JSON.parse()/zod already guarantee the envelope
+ * itself is well-formed, so this can only be caught by inspecting the text values.
+ */
+export function looksLikeLeakedInternalData(text: string): boolean {
+  const lower = text.toLowerCase();
+  return LEAK_MARKERS.some((marker) => lower.includes(marker));
+}
+
+/** Throws `failureMessage` if `text` is blank or looks like leaked internal data. */
+export function assertValidReplyText(text: string, failureMessage: string): void {
+  if (text.trim() === '' || looksLikeLeakedInternalData(text)) {
+    throw new Error(failureMessage);
+  }
+}
+
+export const TranscriptRequestSchema = z.object({
+  transcript: z
+    .array(
+      z.object({
+        role: z.enum(['user', 'assistant']),
+        content: z.string().min(1).max(4000),
+      })
+    )
+    .min(1)
+    .max(120),
+});

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { runOnboardingTurn } from '@/lib/onboarding/chat';
+import { runOnboardingSynthesis } from '@/lib/onboarding/synthesis';
 import { TranscriptRequestSchema } from '@/lib/onboarding/extraction';
 
 export async function POST(request: NextRequest) {
@@ -23,12 +23,12 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await runOnboardingTurn(transcript);
+    const result = await runOnboardingSynthesis(transcript);
     return NextResponse.json(result);
   } catch (err) {
-    console.error('[onboarding-chat]', err);
+    console.error('[onboarding-synthesize]', err);
     return NextResponse.json(
-      { error: 'No se pudo continuar la conversación, intenta de nuevo.' },
+      { error: 'No se pudieron generar tus resultados, intenta de nuevo.' },
       { status: 500 }
     );
   }
