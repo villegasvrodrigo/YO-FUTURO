@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
 import { validateProfileStep, validateGoals, validateDeliveryHour } from '@/lib/onboarding/validate';
@@ -10,6 +10,11 @@ import {
   type ChatMessage,
   type ExtractedProfile,
 } from '@/lib/onboarding/extraction';
+import {
+  loadOnboardingProgress,
+  saveOnboardingProgress,
+  clearOnboardingProgress,
+} from '@/lib/onboarding/progress';
 import { ONBOARDING_GREETING } from '@/lib/onboarding/script';
 import type { FocusArea, Tone } from '@/lib/types';
 
@@ -31,6 +36,57 @@ export default function OnboardingPage() {
   const [synthesizing, setSynthesizing] = useState(false);
   const [synthesisError, setSynthesisError] = useState<string | null>(null);
   const [synthesisTranscript, setSynthesisTranscript] = useState<ChatMessage[] | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Resume a previously-saved conversation on load, so a refresh, a closed tab, or a
+  // return the next day picks up exactly where the user left off instead of restarting.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        if (!cancelled) setLoaded(true);
+        return;
+      }
+      if (!cancelled) setUserId(user.id);
+
+      const progress = await loadOnboardingProgress(supabase, user.id);
+      if (cancelled) return;
+      if (!progress) {
+        setLoaded(true);
+        return;
+      }
+
+      setTranscript(progress.transcript);
+      setExtracted(progress.extracted);
+      if (progress.done) {
+        const hasNarrative =
+          progress.extracted.currentEnergySummary !== null ||
+          progress.extracted.blockingPattern !== null ||
+          progress.extracted.futureVision !== null;
+        if (hasNarrative) {
+          setDone(true);
+        } else {
+          // The script finished last time but synthesis never completed — pick that back up.
+          await runSynthesis(progress.transcript, progress.extracted);
+        }
+      }
+      if (!cancelled) setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Runs once on mount only — resuming saved progress is a one-time hydration step.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function persistProgress(t: ChatMessage[], e: ExtractedProfile, d: boolean) {
+    if (!userId) return;
+    const supabase = createClient();
+    await saveOnboardingProgress(supabase, userId, { transcript: t, extracted: e, done: d });
+  }
 
   async function requestTurn(nextTranscript: ChatMessage[]) {
     if (sending) return;
@@ -63,13 +119,15 @@ export default function OnboardingPage() {
         throw new Error(message);
       }
       const result = await res.json();
-      setExtracted((prev) => mergeExtracted(prev, result.extracted));
+      const mergedExtracted = mergeExtracted(extracted, result.extracted);
+      setExtracted(mergedExtracted);
       const finalTranscript = [...nextTranscript, { role: 'assistant' as const, content: result.assistantReply }];
       setTranscript(finalTranscript);
       setLastFailedTranscript(null);
+      await persistProgress(finalTranscript, mergedExtracted, result.done);
       // The script's own reply never carries the narrative results — those come from a
       // separate, longer-running synthesis call kicked off once the script is complete.
-      if (result.done) await runSynthesis(finalTranscript);
+      if (result.done) await runSynthesis(finalTranscript, mergedExtracted);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo continuar la conversación');
       // Keep the accumulated transcript so the same turn can be retried inline.
@@ -79,7 +137,7 @@ export default function OnboardingPage() {
     }
   }
 
-  async function runSynthesis(finalTranscript: ChatMessage[]) {
+  async function runSynthesis(finalTranscript: ChatMessage[], baseExtracted: ExtractedProfile) {
     setSynthesizing(true);
     setSynthesisError(null);
     try {
@@ -99,7 +157,9 @@ export default function OnboardingPage() {
         throw new Error(message);
       }
       const synthesis = await res.json();
-      setExtracted((prev) => mergeExtracted(prev, synthesis));
+      const mergedExtracted = mergeExtracted(baseExtracted, synthesis);
+      setExtracted(mergedExtracted);
+      await persistProgress(finalTranscript, mergedExtracted, true);
       setSynthesisTranscript(null);
       setDone(true);
     } catch (err) {
@@ -125,13 +185,17 @@ export default function OnboardingPage() {
 
   async function retrySynthesis() {
     if (!synthesisTranscript) return;
-    await runSynthesis(synthesisTranscript);
+    await runSynthesis(synthesisTranscript, extracted);
   }
 
   const hasNarrativeResults =
     extracted.currentEnergySummary !== null ||
     extracted.blockingPattern !== null ||
     extracted.futureVision !== null;
+
+  if (!loaded) {
+    return <LoadingScreen />;
+  }
 
   if (synthesizing) {
     return <SynthesizingScreen />;
@@ -275,6 +339,10 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
       .insert(nonEmptyGoals.map((description) => ({ user_id: user.id, description })));
     if (goalsError) return setError(goalsError.message);
 
+    // The profile now holds everything permanently — the in-progress conversation
+    // snapshot has served its purpose and would only cause confusion if left behind.
+    await clearOnboardingProgress(supabase, user.id);
+
     router.push('/dashboard');
     router.refresh();
   }
@@ -409,6 +477,16 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
           </button>
         </div>
       </div>
+    </main>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <main className="flex flex-1 items-center justify-center px-6 py-16">
+      <p role="status" className="font-mono text-xs tracking-[0.14em] text-mist">
+        CARGANDO…
+      </p>
     </main>
   );
 }
