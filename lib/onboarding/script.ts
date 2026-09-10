@@ -6,7 +6,10 @@ export const ONBOARDING_GREETING =
   'Hola. Antes de escribirte tu primer mensaje, quiero conocerte un poco. Para empezar, ¿cómo te llamas?';
 
 export const ONBOARDING_SCRIPT: OnboardingScriptStep[] = [
-  { instruction: 'Pregunta su nombre, de forma casual, como abriendo la conversación.' },
+  {
+    instruction:
+      'La conversación ya abrió preguntando su nombre en el saludo inicial — usa su respuesta, no lo preguntes de nuevo.',
+  },
   { instruction: 'Pregunta su edad actual.' },
   {
     instruction:

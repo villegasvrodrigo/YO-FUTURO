@@ -60,9 +60,9 @@ describe('runOnboardingTurn', () => {
     );
 
     const callArgs = parse.mock.calls[0][0];
-    for (const step of ONBOARDING_SCRIPT) {
-      expect(callArgs.system).toContain(step.instruction);
-    }
+    ONBOARDING_SCRIPT.forEach((step, i) => {
+      expect(callArgs.system).toContain(`${i + 1}. ${step.instruction}`);
+    });
   });
 
   it('lists every required field for the done condition, excluding deliveryHour', async () => {
