@@ -1,28 +1,50 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
-import { OnboardingTurnSchema, type OnboardingTurnResult, type ChatMessage } from './extraction';
+import {
+  RawOnboardingTurnSchema,
+  normalizeRawTurn,
+  type OnboardingTurnResult,
+  type ChatMessage,
+} from './extraction';
 import { ONBOARDING_SCRIPT, type OnboardingScriptStep } from './script';
 
 const MODEL = 'claude-sonnet-5';
+
+const TURN_FAILED_MESSAGE = 'No se pudo continuar la conversación, intenta de nuevo.';
 
 export async function runOnboardingTurn(
   transcript: ChatMessage[],
   script: OnboardingScriptStep[] = ONBOARDING_SCRIPT,
   client: Anthropic = new Anthropic()
 ): Promise<OnboardingTurnResult> {
-  const response = await client.messages.parse({
-    model: MODEL,
-    max_tokens: 1024,
-    system: buildSystemPrompt(script),
-    messages: transcript.map((m) => ({ role: m.role, content: m.content })),
-    output_config: { format: zodOutputFormat(OnboardingTurnSchema) },
-  });
+  // The Messages API requires messages[0].role === 'user'; the UI seeds the
+  // transcript with the scripted greeting, so drop any leading assistant turns.
+  // Consecutive same-role messages are combined by the API, so nothing else needs normalizing.
+  const firstUserIndex = transcript.findIndex((m) => m.role === 'user');
+  const messagesForClaude = (firstUserIndex === -1 ? [] : transcript.slice(firstUserIndex)).map(
+    (m) => ({ role: m.role, content: m.content })
+  );
+
+  let response;
+  try {
+    response = await client.messages.parse({
+      model: MODEL,
+      max_tokens: 4096,
+      system: buildSystemPrompt(script),
+      messages: messagesForClaude,
+      output_config: { format: zodOutputFormat(RawOnboardingTurnSchema) },
+    });
+  } catch {
+    // Truncation, schema-validation failures and network/API errors all land here.
+    // Surface a stable, user-facing message instead of raw SDK/Zod internals.
+    throw new Error(TURN_FAILED_MESSAGE);
+  }
 
   if (!response.parsed_output) {
     throw new Error('Claude no devolvió una respuesta estructurada válida');
   }
 
-  return response.parsed_output;
+  return normalizeRawTurn(response.parsed_output);
 }
 
 function buildSystemPrompt(script: OnboardingScriptStep[]): string {

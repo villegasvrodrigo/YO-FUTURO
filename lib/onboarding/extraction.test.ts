@@ -25,6 +25,20 @@ describe('mergeExtracted', () => {
     expect(merged.deliveryHour).toBe(20);
   });
 
+  it('keeps a previously-known string field when the new extraction has an empty string', () => {
+    const prev: ExtractedProfile = { ...EMPTY_EXTRACTED_PROFILE, values: 'la honestidad' };
+    const next: ExtractedProfile = { ...EMPTY_EXTRACTED_PROFILE, values: '' };
+    const merged = mergeExtracted(prev, next);
+    expect(merged.values).toBe('la honestidad');
+  });
+
+  it('keeps previously-known goals when the new extraction has an empty array', () => {
+    const prev: ExtractedProfile = { ...EMPTY_EXTRACTED_PROFILE, goals: ['Meta 1'] };
+    const next: ExtractedProfile = { ...EMPTY_EXTRACTED_PROFILE, goals: [] };
+    const merged = mergeExtracted(prev, next);
+    expect(merged.goals).toEqual(['Meta 1']);
+  });
+
   it('merges the goals array as a whole when present in the new extraction', () => {
     const prev: ExtractedProfile = { ...EMPTY_EXTRACTED_PROFILE, goals: ['Meta 1'] };
     const next: ExtractedProfile = { ...EMPTY_EXTRACTED_PROFILE, goals: ['Meta 1', 'Meta 2'] };

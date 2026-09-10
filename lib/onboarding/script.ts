@@ -19,7 +19,8 @@ export const ONBOARDING_SCRIPT: OnboardingScriptStep[] = [
   { field: 'currentAge', instruction: 'Descubre su edad actual.' },
   {
     field: 'futureSelfAge',
-    instruction: 'Descubre a qué edad quiere que le hable su yo futuro.',
+    instruction:
+      'Descubre a qué edad quiere que le hable su yo futuro (debe ser mayor que su edad actual).',
   },
   {
     field: 'focusArea',
