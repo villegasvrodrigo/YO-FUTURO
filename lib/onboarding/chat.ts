@@ -47,6 +47,7 @@ export async function runOnboardingTurn(
   // TEMPORARY — investigating intermittent garbled/blank replies (reported 2026-09-10).
   // Logs the untouched text exactly as the API returned it, before any parsing/merging
   // on our side, so a corrupted case can be compared against what gets saved/displayed.
+  // TODO: remove this logging before merging this branch.
   console.log(
     '[onboarding-chat][raw]',
     JSON.stringify({

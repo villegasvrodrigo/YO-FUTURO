@@ -51,6 +51,7 @@ export async function runOnboardingSynthesis(
   }
 
   // TEMPORARY — investigating intermittent garbled/blank replies (reported 2026-09-10).
+  // TODO: remove this logging before merging this branch.
   console.log(
     '[onboarding-synthesize][raw]',
     JSON.stringify({
