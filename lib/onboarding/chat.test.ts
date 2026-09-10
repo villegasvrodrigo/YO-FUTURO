@@ -198,6 +198,22 @@ describe('runOnboardingTurn', () => {
     ).rejects.toThrow('No se pudo continuar la conversación, intenta de nuevo.');
   });
 
+  it('rejects an empty assistantReply instead of showing a blank bubble', async () => {
+    const parse = resolvingParse(okTurn({}, ''));
+
+    await expect(
+      runOnboardingTurn([{ role: 'user', content: 'Hola' }], ONBOARDING_SCRIPT, fakeClient(parse))
+    ).rejects.toThrow('No se pudo continuar la conversación, intenta de nuevo.');
+  });
+
+  it('rejects a whitespace-only assistantReply', async () => {
+    const parse = resolvingParse(okTurn({}, '   \n  '));
+
+    await expect(
+      runOnboardingTurn([{ role: 'user', content: 'Hola' }], ONBOARDING_SCRIPT, fakeClient(parse))
+    ).rejects.toThrow('No se pudo continuar la conversación, intenta de nuevo.');
+  });
+
   it('accepts a normal reply with no leaked internal data', async () => {
     const parse = resolvingParse(okTurn({}, '¿Cómo te llamas?'));
 

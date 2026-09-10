@@ -56,13 +56,13 @@ export async function runOnboardingTurn(
 
   const result = normalizeRawTurn(response.parsed_output);
 
-  // Rare structured-output glitch: the model's assistantReply text itself drifts into
-  // echoing its own JSON schema (raw braces, field names like "extracted") instead of
-  // staying natural language. JSON.parse()/zod already guarantee the envelope is
-  // well-formed, so this can only be caught by inspecting the reply text itself. Treat
-  // it as a failed turn — same "Reintentar" path as a network error — rather than ever
-  // showing the user internal data.
-  if (containsLeakedInternalData(result.assistantReply)) {
+  // Rare structured-output glitch: the model's assistantReply text itself comes back
+  // blank, or drifts into echoing its own JSON schema (raw braces, field names like
+  // "extracted") instead of staying natural language. JSON.parse()/zod already
+  // guarantee the envelope is well-formed, so this can only be caught by inspecting
+  // the reply text itself. Treat it as a failed turn — same "Reintentar" path as a
+  // network error — rather than ever showing the user a blank bubble or internal data.
+  if (result.assistantReply.trim() === '' || containsLeakedInternalData(result.assistantReply)) {
     throw new Error(TURN_FAILED_MESSAGE);
   }
 
