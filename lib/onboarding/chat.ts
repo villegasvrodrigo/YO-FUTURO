@@ -54,7 +54,38 @@ export async function runOnboardingTurn(
     throw new Error('Claude no devolvió una respuesta estructurada válida');
   }
 
-  return normalizeRawTurn(response.parsed_output);
+  const result = normalizeRawTurn(response.parsed_output);
+
+  // Rare structured-output glitch: the model's assistantReply text itself drifts into
+  // echoing its own JSON schema (raw braces, field names like "extracted") instead of
+  // staying natural language. JSON.parse()/zod already guarantee the envelope is
+  // well-formed, so this can only be caught by inspecting the reply text itself. Treat
+  // it as a failed turn — same "Reintentar" path as a network error — rather than ever
+  // showing the user internal data.
+  if (containsLeakedInternalData(result.assistantReply)) {
+    throw new Error(TURN_FAILED_MESSAGE);
+  }
+
+  return result;
+}
+
+const LEAK_MARKERS = [
+  '{',
+  '}',
+  'extracted',
+  'assistantreply',
+  'currentenergysummary',
+  'blockingpattern',
+  'futurevision',
+  'focusarea',
+  'futureselfage',
+  'currentage',
+  'deliveryhour',
+];
+
+function containsLeakedInternalData(assistantReply: string): boolean {
+  const lower = assistantReply.toLowerCase();
+  return LEAK_MARKERS.some((marker) => lower.includes(marker));
 }
 
 const REQUIRED_FIELDS = [

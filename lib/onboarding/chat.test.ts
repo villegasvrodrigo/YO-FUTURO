@@ -19,9 +19,9 @@ function resolvingParse(parsedOutput: {
 
 // Deliberately loose: some tests feed values Claude could return but the strict
 // ExtractedProfile forbids (e.g. an out-of-enum focusArea).
-function okTurn(extracted: Record<string, unknown> = {}) {
+function okTurn(extracted: Record<string, unknown> = {}, assistantReply = 'ok') {
   return {
-    assistantReply: 'ok',
+    assistantReply,
     extracted: { ...EMPTY_EXTRACTED_PROFILE, ...extracted },
     done: false,
   };
@@ -176,5 +176,37 @@ describe('runOnboardingTurn', () => {
     );
 
     expect(parse.mock.calls[0][1]).toEqual({ timeout: 30_000, maxRetries: 1 });
+  });
+
+  it('rejects a reply that leaks raw JSON syntax instead of showing it to the user', async () => {
+    const parse = resolvingParse(
+      okTurn({}, '...iríaará según escucharte a tu yo futuro?extracted:{')
+    );
+
+    await expect(
+      runOnboardingTurn([{ role: 'user', content: 'Hola' }], ONBOARDING_SCRIPT, fakeClient(parse))
+    ).rejects.toThrow('No se pudo continuar la conversación, intenta de nuevo.');
+  });
+
+  it('rejects a reply that leaks an internal field name even without raw braces', async () => {
+    const parse = resolvingParse(
+      okTurn({}, 'Cuéntame más sobre tu futureVision para poder ayudarte.')
+    );
+
+    await expect(
+      runOnboardingTurn([{ role: 'user', content: 'Hola' }], ONBOARDING_SCRIPT, fakeClient(parse))
+    ).rejects.toThrow('No se pudo continuar la conversación, intenta de nuevo.');
+  });
+
+  it('accepts a normal reply with no leaked internal data', async () => {
+    const parse = resolvingParse(okTurn({}, '¿Cómo te llamas?'));
+
+    const result = await runOnboardingTurn(
+      [{ role: 'user', content: 'Hola' }],
+      ONBOARDING_SCRIPT,
+      fakeClient(parse)
+    );
+
+    expect(result.assistantReply).toBe('¿Cómo te llamas?');
   });
 });
