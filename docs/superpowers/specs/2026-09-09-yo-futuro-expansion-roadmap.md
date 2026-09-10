@@ -198,7 +198,7 @@ El guion de 17 preguntas nunca pregunta `name`, `currentAge`,
 - **`deliveryHour`/`timezone`**: sin cambio — se llenan en la pantalla de
   confirmación/edición como ya ocurre hoy, con el mismo default.
 - **`name`, `currentAge`, `futureSelfAge`**: se agregan 3 pasos ligeros al
-  inicio del guion, antes de las 17 preguntas del diagnóstico emocional,
+  inicio del guion, antes de las 14 preguntas del diagnóstico emocional,
   como apertura casual de la conversación.
 - **`tone`**: no se pregunta explícitamente — Claude lo infiere del
   registro emocional de toda la conversación (uno de los 4 valores ya
