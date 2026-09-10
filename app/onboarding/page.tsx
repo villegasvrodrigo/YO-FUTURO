@@ -26,12 +26,10 @@ export default function OnboardingPage() {
   const [done, setDone] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFailedTranscript, setLastFailedTranscript] = useState<ChatMessage[] | null>(null);
 
-  async function sendMessage() {
-    if (!input.trim() || sending) return;
-    const nextTranscript = [...transcript, { role: 'user' as const, content: input.trim() }];
-    setTranscript(nextTranscript);
-    setInput('');
+  async function requestTurn(nextTranscript: ChatMessage[]) {
+    if (sending) return;
     setSending(true);
     setError(null);
 
@@ -42,18 +40,40 @@ export default function OnboardingPage() {
         body: JSON.stringify({ transcript: nextTranscript }),
       });
       if (!res.ok) {
-        const body = await res.json();
-        throw new Error(body.error ?? 'No se pudo continuar la conversación');
+        let message = 'No se pudo continuar la conversación';
+        try {
+          const body = await res.json();
+          message = body.error ?? message;
+        } catch {
+          // Non-JSON error body (e.g. a platform error page): keep the default message.
+        }
+        throw new Error(message);
       }
       const result = await res.json();
       setExtracted((prev) => mergeExtracted(prev, result.extracted));
       setTranscript([...nextTranscript, { role: 'assistant', content: result.assistantReply }]);
+      setLastFailedTranscript(null);
       if (result.done) setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo continuar la conversación');
+      // Keep the accumulated transcript so the same turn can be retried inline.
+      setLastFailedTranscript(nextTranscript);
     } finally {
       setSending(false);
     }
+  }
+
+  async function sendMessage() {
+    if (!input.trim() || sending) return;
+    const nextTranscript = [...transcript, { role: 'user' as const, content: input.trim() }];
+    setTranscript(nextTranscript);
+    setInput('');
+    await requestTurn(nextTranscript);
+  }
+
+  async function retryLastTurn() {
+    if (!lastFailedTranscript) return;
+    await requestTurn(lastFailedTranscript);
   }
 
   if (done) {
@@ -79,9 +99,21 @@ export default function OnboardingPage() {
           ))}
         </div>
         {error && (
-          <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
-            {error}
-          </p>
+          <div className="mb-4 flex items-center gap-2.5">
+            <p role="alert" className="flex-1 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+              {error}
+            </p>
+            {lastFailedTranscript && (
+              <button
+                type="button"
+                onClick={retryLastTurn}
+                disabled={sending}
+                className="shrink-0 rounded-lg border border-rule px-4 py-2.5 text-sm font-semibold text-parchment transition-colors hover:border-brass/60 disabled:opacity-50"
+              >
+                Reintentar
+              </button>
+            )}
+          </div>
         )}
         <div className="flex gap-2.5">
           <input
@@ -103,6 +135,13 @@ export default function OnboardingPage() {
             Enviar
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => setDone(true)}
+          className="mt-3 text-sm text-mist underline underline-offset-4 transition-colors hover:text-brass"
+        >
+          Ya terminé, revisar mis datos
+        </button>
       </div>
     </main>
   );
