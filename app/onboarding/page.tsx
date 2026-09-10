@@ -41,6 +41,15 @@ export default function OnboardingPage() {
         body: JSON.stringify({ transcript: nextTranscript }),
       });
       if (!res.ok) {
+        if (res.status === 400) {
+          // Validation failure (e.g. the conversation grew too long) — retrying the
+          // identical payload would fail identically, so don't offer a retry loop.
+          setError(
+            'Esta conversación se hizo muy larga para continuar. Usa "Ya terminé, revisar mis datos" para avanzar con lo que ya compartiste.'
+          );
+          setLastFailedTranscript(null);
+          return;
+        }
         let message = 'No se pudo continuar la conversación';
         try {
           const body = await res.json();
@@ -77,7 +86,12 @@ export default function OnboardingPage() {
     await requestTurn(lastFailedTranscript);
   }
 
-  if (done && !resultsConfirmed) {
+  const hasNarrativeResults =
+    extracted.currentEnergySummary !== null ||
+    extracted.blockingPattern !== null ||
+    extracted.futureVision !== null;
+
+  if (done && !resultsConfirmed && hasNarrativeResults) {
     return <ResultsScreen extracted={extracted} onContinue={() => setResultsConfirmed(true)} />;
   }
 
@@ -380,7 +394,7 @@ function ResultCard({ title, content }: { title: string; content: string | null 
     <div className="rounded border-t-2 border-brass-dim bg-dusk-2 px-7 py-8">
       <p className="mb-3 font-mono text-xs uppercase tracking-[0.08em] text-mist">{title}</p>
       <p className="whitespace-pre-line font-serif text-lg italic leading-relaxed text-parchment">
-        {content ?? 'No pudimos generar esta sección — puedes continuar de todas formas.'}
+        {content?.trim() ? content : 'No pudimos generar esta sección — puedes continuar de todas formas.'}
       </p>
     </div>
   );

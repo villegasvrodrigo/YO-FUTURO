@@ -8,11 +8,11 @@ const RequestBodySchema = z.object({
     .array(
       z.object({
         role: z.enum(['user', 'assistant']),
-        content: z.string().min(1).max(2000),
+        content: z.string().min(1).max(4000),
       })
     )
     .min(1)
-    .max(40),
+    .max(120),
 });
 
 export async function POST(request: NextRequest) {
