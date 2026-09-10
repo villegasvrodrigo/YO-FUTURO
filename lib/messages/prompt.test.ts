@@ -13,6 +13,9 @@ const profile: Profile = {
   delivery_hour_local: 8,
   timezone: 'America/Mexico_City',
   onboarding_completed: true,
+  current_energy_summary: null,
+  blocking_pattern: null,
+  future_vision: null,
   created_at: '',
   updated_at: '',
 };
