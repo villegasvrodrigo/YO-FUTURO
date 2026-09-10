@@ -192,7 +192,7 @@ sin necesidad de recrear el tipo.
 
 ### Campos que el guion real no cubre — decisiones
 
-El guion de 17 preguntas nunca pregunta `name`, `currentAge`,
+El guion de 14 preguntas nunca pregunta `name`, `currentAge`,
 `futureSelfAge`, `tone`, `deliveryHour` ni `timezone`. Decisiones:
 
 - **`deliveryHour`/`timezone`**: sin cambio — se llenan en la pantalla de
