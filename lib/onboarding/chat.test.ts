@@ -39,7 +39,7 @@ describe('runOnboardingTurn', () => {
 
     expect(result.assistantReply).toBe('¿Cómo te llamas?');
     expect(result.done).toBe(false);
-    expect(parse).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude-sonnet-5' }));
+    expect(parse.mock.calls[0][0]).toEqual(expect.objectContaining({ model: 'claude-sonnet-5' }));
   });
 
   it('throws if Claude does not return a parsed output', async () => {
@@ -164,5 +164,17 @@ describe('runOnboardingTurn', () => {
     );
 
     expect(parse.mock.calls[0][0].max_tokens).toBe(4096);
+  });
+
+  it('bounds a single call to 30s and at most 1 SDK-level retry, so a hung request fails fast instead of hanging for minutes', async () => {
+    const parse = resolvingParse(okTurn());
+
+    await runOnboardingTurn(
+      [{ role: 'user', content: 'Hola' }],
+      ONBOARDING_SCRIPT,
+      fakeClient(parse)
+    );
+
+    expect(parse.mock.calls[0][1]).toEqual({ timeout: 30_000, maxRetries: 1 });
   });
 });

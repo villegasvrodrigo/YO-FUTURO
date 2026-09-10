@@ -116,6 +116,11 @@ export default function OnboardingPage() {
               {m.content}
             </div>
           ))}
+          {sending && (
+            <div className="rounded-lg bg-dusk-2 px-4 py-3 text-[15px] italic text-mist" role="status">
+              Escribiendo…
+            </div>
+          )}
         </div>
         {error && (
           <div className="mb-4 flex items-center gap-2.5">

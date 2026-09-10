@@ -12,6 +12,13 @@ const MODEL = 'claude-sonnet-5';
 
 const TURN_FAILED_MESSAGE = 'No se pudo continuar la conversación, intenta de nuevo.';
 
+// The SDK's default request timeout is 10 minutes, which left users staring at a
+// disabled "Enviar" button with no feedback during a real network hiccup. Fail
+// fast with at most 1 SDK-level retry so a hung call surfaces the existing
+// "Reintentar" flow within ~1 minute instead of up to 10.
+const CLAUDE_TIMEOUT_MS = 30_000;
+const CLAUDE_MAX_RETRIES = 1;
+
 export async function runOnboardingTurn(
   transcript: ChatMessage[],
   script: OnboardingScriptStep[] = ONBOARDING_SCRIPT,
@@ -27,13 +34,16 @@ export async function runOnboardingTurn(
 
   let response;
   try {
-    response = await client.messages.parse({
-      model: MODEL,
-      max_tokens: 4096,
-      system: buildSystemPrompt(script),
-      messages: messagesForClaude,
-      output_config: { format: zodOutputFormat(RawOnboardingTurnSchema) },
-    });
+    response = await client.messages.parse(
+      {
+        model: MODEL,
+        max_tokens: 4096,
+        system: buildSystemPrompt(script),
+        messages: messagesForClaude,
+        output_config: { format: zodOutputFormat(RawOnboardingTurnSchema) },
+      },
+      { timeout: CLAUDE_TIMEOUT_MS, maxRetries: CLAUDE_MAX_RETRIES }
+    );
   } catch {
     // Truncation, schema-validation failures and network/API errors all land here.
     // Surface a stable, user-facing message instead of raw SDK/Zod internals.
