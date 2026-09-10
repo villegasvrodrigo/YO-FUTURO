@@ -309,9 +309,15 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
   const [deliveryHour, setDeliveryHour] = useState(extracted.deliveryHour ?? 8);
   const [timezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
   async function confirmAndSave() {
+    // Guards against a double-click sending two concurrent inserts — with no protection
+    // here, the second one always lost the race to the profiles table's primary key and
+    // surfaced a raw Postgres error instead of a friendly message.
+    if (saving) return;
+
     const profileErr = validateProfileStep({ name, currentAge, futureSelfAge, focusArea, tone, values });
     if (profileErr) return setError(profileErr);
     const goalsErr = validateGoals(goals);
@@ -319,43 +325,62 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
     const hourErr = validateDeliveryHour(deliveryHour);
     if (hourErr) return setError(hourErr);
     setError(null);
+    setSaving(true);
 
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError('Sesión expirada, vuelve a iniciar sesión.');
-      return;
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError('Sesión expirada, vuelve a iniciar sesión.');
+        return;
+      }
+
+      // Upsert, not insert: a prior click (or a retry after this same confirmation
+      // failed partway through, like this one) may have already created the row, and
+      // "save again" should update it in place rather than fail on the primary key.
+      const { error: profileError } = await supabase.from('profiles').upsert(
+        {
+          id: user.id,
+          name,
+          current_age: currentAge,
+          future_self_age: futureSelfAge,
+          focus_area: focusArea,
+          tone,
+          values,
+          delivery_hour_local: deliveryHour,
+          timezone,
+          onboarding_completed: true,
+          current_energy_summary: extracted.currentEnergySummary,
+          blocking_pattern: extracted.blockingPattern,
+          future_vision: extracted.futureVision,
+        },
+        { onConflict: 'id' }
+      );
+      if (profileError) {
+        console.error('[onboarding-confirm] profile upsert failed', profileError);
+        setError('No se pudo guardar tu perfil, intenta de nuevo.');
+        return;
+      }
+
+      const nonEmptyGoals = goals.map((g) => g.trim()).filter(Boolean);
+      const { error: goalsError } = await supabase
+        .from('goals')
+        .insert(nonEmptyGoals.map((description) => ({ user_id: user.id, description })));
+      if (goalsError) {
+        console.error('[onboarding-confirm] goals insert failed', goalsError);
+        setError('No se pudieron guardar tus metas, intenta de nuevo.');
+        return;
+      }
+
+      // The profile now holds everything permanently — the in-progress conversation
+      // snapshot has served its purpose and would only cause confusion if left behind.
+      await clearOnboardingProgress(supabase, user.id);
+
+      router.push('/dashboard');
+      router.refresh();
+    } finally {
+      setSaving(false);
     }
-
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: user.id,
-      name,
-      current_age: currentAge,
-      future_self_age: futureSelfAge,
-      focus_area: focusArea,
-      tone,
-      values,
-      delivery_hour_local: deliveryHour,
-      timezone,
-      onboarding_completed: true,
-      current_energy_summary: extracted.currentEnergySummary,
-      blocking_pattern: extracted.blockingPattern,
-      future_vision: extracted.futureVision,
-    });
-    if (profileError) return setError(profileError.message);
-
-    const nonEmptyGoals = goals.map((g) => g.trim()).filter(Boolean);
-    const { error: goalsError } = await supabase
-      .from('goals')
-      .insert(nonEmptyGoals.map((description) => ({ user_id: user.id, description })));
-    if (goalsError) return setError(goalsError.message);
-
-    // The profile now holds everything permanently — the in-progress conversation
-    // snapshot has served its purpose and would only cause confusion if left behind.
-    await clearOnboardingProgress(supabase, user.id);
-
-    router.push('/dashboard');
-    router.refresh();
   }
 
   return (
@@ -482,9 +507,10 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
           <button
             type="button"
             onClick={confirmAndSave}
-            className="mt-2 w-full rounded-lg bg-brass px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90"
+            disabled={saving}
+            className="mt-2 w-full rounded-lg bg-brass px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90 disabled:opacity-50"
           >
-            Confirmar y empezar
+            {saving ? 'Guardando…' : 'Confirmar y empezar'}
           </button>
         </div>
       </div>
