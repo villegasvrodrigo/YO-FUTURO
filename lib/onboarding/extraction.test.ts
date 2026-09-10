@@ -45,4 +45,14 @@ describe('mergeExtracted', () => {
     const merged = mergeExtracted(prev, next);
     expect(merged.goals).toEqual(['Meta 1', 'Meta 2']);
   });
+
+  it('merges newly-extracted narrative fields the same way as any other field', () => {
+    const prev = EMPTY_EXTRACTED_PROFILE;
+    const next: ExtractedProfile = {
+      ...EMPTY_EXTRACTED_PROFILE,
+      blockingPattern: 'Evita hablar de dinero cuando se siente ansioso.',
+    };
+    const merged = mergeExtracted(prev, next);
+    expect(merged.blockingPattern).toBe('Evita hablar de dinero cuando se siente ansioso.');
+  });
 });

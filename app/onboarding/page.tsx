@@ -24,6 +24,7 @@ export default function OnboardingPage() {
   const [input, setInput] = useState('');
   const [extracted, setExtracted] = useState<ExtractedProfile>(EMPTY_EXTRACTED_PROFILE);
   const [done, setDone] = useState(false);
+  const [resultsConfirmed, setResultsConfirmed] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFailedTranscript, setLastFailedTranscript] = useState<ChatMessage[] | null>(null);
@@ -40,6 +41,15 @@ export default function OnboardingPage() {
         body: JSON.stringify({ transcript: nextTranscript }),
       });
       if (!res.ok) {
+        if (res.status === 400) {
+          // Validation failure (e.g. the conversation grew too long) — retrying the
+          // identical payload would fail identically, so don't offer a retry loop.
+          setError(
+            'Esta conversación se hizo muy larga para continuar. Usa "Ya terminé, revisar mis datos" para avanzar con lo que ya compartiste.'
+          );
+          setLastFailedTranscript(null);
+          return;
+        }
         let message = 'No se pudo continuar la conversación';
         try {
           const body = await res.json();
@@ -74,6 +84,15 @@ export default function OnboardingPage() {
   async function retryLastTurn() {
     if (!lastFailedTranscript) return;
     await requestTurn(lastFailedTranscript);
+  }
+
+  const hasNarrativeResults =
+    extracted.currentEnergySummary !== null ||
+    extracted.blockingPattern !== null ||
+    extracted.futureVision !== null;
+
+  if (done && !resultsConfirmed && hasNarrativeResults) {
+    return <ResultsScreen extracted={extracted} onContinue={() => setResultsConfirmed(true)} />;
   }
 
   if (done) {
@@ -151,7 +170,7 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
   const [name, setName] = useState(extracted.name ?? '');
   const [currentAge, setCurrentAge] = useState(extracted.currentAge ?? 25);
   const [futureSelfAge, setFutureSelfAge] = useState(extracted.futureSelfAge ?? 40);
-  const [focusArea, setFocusArea] = useState<FocusArea>(extracted.focusArea ?? 'personal');
+  const [focusArea, setFocusArea] = useState<FocusArea>(extracted.focusArea ?? 'finanzas');
   const [tone, setTone] = useState<Tone>(extracted.tone ?? 'motivador');
   const [values, setValues] = useState(extracted.values ?? '');
   const [goals, setGoals] = useState<string[]>(
@@ -189,6 +208,9 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
       delivery_hour_local: deliveryHour,
       timezone,
       onboarding_completed: true,
+      current_energy_summary: extracted.currentEnergySummary,
+      blocking_pattern: extracted.blockingPattern,
+      future_vision: extracted.futureVision,
     });
     if (profileError) return setError(profileError.message);
 
@@ -253,11 +275,10 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
               onChange={(e) => setFocusArea(e.target.value as FocusArea)}
               className={fieldClass}
             >
-              <option className="bg-dusk-2 text-parchment" value="carrera">Carrera</option>
-              <option className="bg-dusk-2 text-parchment" value="salud">Salud</option>
-              <option className="bg-dusk-2 text-parchment" value="relaciones">Relaciones</option>
-              <option className="bg-dusk-2 text-parchment" value="finanzas">Finanzas</option>
-              <option className="bg-dusk-2 text-parchment" value="personal">Personal</option>
+              <option className="bg-dusk-2 text-parchment" value="finanzas">Dinero y abundancia</option>
+              <option className="bg-dusk-2 text-parchment" value="relaciones">Amor y relaciones</option>
+              <option className="bg-dusk-2 text-parchment" value="paz">Paz</option>
+              <option className="bg-dusk-2 text-parchment" value="cuerpo">Mi cuerpo</option>
             </select>
           </div>
           <div>
@@ -334,5 +355,47 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
         </div>
       </div>
     </main>
+  );
+}
+
+function ResultsScreen({
+  extracted,
+  onContinue,
+}: {
+  extracted: ExtractedProfile;
+  onContinue: () => void;
+}) {
+  return (
+    <main className="flex flex-1 justify-center px-6 py-16">
+      <div className="w-full max-w-xl">
+        <p className="mb-2 font-mono text-xs tracking-[0.14em] text-brass">TU RADIOGRAFÍA</p>
+        <h1 className="mb-8 font-serif text-3xl text-parchment">Esto es lo que encontramos</h1>
+
+        <div className="flex flex-col gap-6">
+          <ResultCard title="Tu energía actual" content={extracted.currentEnergySummary} />
+          <ResultCard title="El patrón que te detiene" content={extracted.blockingPattern} />
+          <ResultCard title="Quién quieres ser" content={extracted.futureVision} />
+        </div>
+
+        <button
+          type="button"
+          onClick={onContinue}
+          className="mt-8 w-full rounded-lg bg-brass px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90"
+        >
+          Continuar
+        </button>
+      </div>
+    </main>
+  );
+}
+
+function ResultCard({ title, content }: { title: string; content: string | null }) {
+  return (
+    <div className="rounded border-t-2 border-brass-dim bg-dusk-2 px-7 py-8">
+      <p className="mb-3 font-mono text-xs uppercase tracking-[0.08em] text-mist">{title}</p>
+      <p className="whitespace-pre-line font-serif text-lg italic leading-relaxed text-parchment">
+        {content?.trim() ? content : 'No pudimos generar esta sección — puedes continuar de todas formas.'}
+      </p>
+    </div>
   );
 }

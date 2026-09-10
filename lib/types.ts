@@ -1,4 +1,4 @@
-export type FocusArea = 'carrera' | 'salud' | 'relaciones' | 'finanzas' | 'personal';
+export type FocusArea = 'carrera' | 'salud' | 'relaciones' | 'finanzas' | 'personal' | 'paz' | 'cuerpo';
 export type Tone = 'motivador' | 'exigente' | 'tierno' | 'directo';
 export type GoalStatus = 'active' | 'achieved' | 'paused';
 export type SendStatus = 'pending' | 'sent' | 'failed';
@@ -14,6 +14,9 @@ export interface Profile {
   delivery_hour_local: number;
   timezone: string;
   onboarding_completed: boolean;
+  current_energy_summary: string | null;
+  blocking_pattern: string | null;
+  future_vision: string | null;
   created_at: string;
   updated_at: string;
 }

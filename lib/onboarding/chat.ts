@@ -47,10 +47,32 @@ export async function runOnboardingTurn(
   return normalizeRawTurn(response.parsed_output);
 }
 
-function buildSystemPrompt(script: OnboardingScriptStep[]): string {
-  const topics = script.map((s) => `- ${s.field}: ${s.instruction}`).join('\n');
-  return `Eres un guía cálido que ayuda a alguien a prepararse para recibir mensajes diarios de su "yo futuro". Debes indagar, en una conversación natural en español, sobre estos temas:
-${topics}
+const REQUIRED_FIELDS = [
+  'name',
+  'currentAge',
+  'futureSelfAge',
+  'focusArea',
+  'tone',
+  'values',
+  'goals',
+  'currentEnergySummary',
+  'blockingPattern',
+  'futureVision',
+] as const;
 
-En cada turno, responde con un JSON que tenga: "assistantReply" (un mensaje breve y natural para continuar la conversación, o para despedirte si ya terminaste), "extracted" (los datos que puedas inferir con confianza de TODA la conversación hasta ahora, usando null en lo que aún no sepas con certeza), y "done" (true solo cuando todos los temas de arriba ya tengan un valor no nulo en "extracted").`;
+function buildSystemPrompt(script: OnboardingScriptStep[]): string {
+  const steps = script.map((s, i) => `${i + 1}. ${s.instruction}`).join('\n');
+  return `Eres un guía cálido que ayuda a alguien a prepararse para recibir mensajes diarios de su "yo futuro", a través de una conversación profunda y progresiva en español. Sigue este guion en orden, una pregunta a la vez, dejando que cada respuesta informe la siguiente:
+${steps}
+
+No preguntes por el tono que prefiere para los mensajes (motivador, exigente, tierno o directo) — infiérelo tú del registro emocional de toda la conversación.
+
+Tampoco preguntes directamente por "values" ni "goals" — infiérelos tú también: "values" de cómo describe la versión de sí misma que quiere ser, y "goals" de su visión a 6 meses, 1 año y a largo plazo.
+
+Cuando ya hayas recorrido el guion completo, sintetiza tres textos narrativos a partir de TODO lo que la persona compartió (nunca texto genérico ni plantillas fijas):
+- "currentEnergySummary": un diagnóstico breve de dónde está la persona hoy en esta área de su vida.
+- "blockingPattern": el patrón que la detiene, basado en sus recuerdos de mayor intensidad emocional, su relación día a día con el tema, y sus momentos de mayor estrés.
+- "futureVision": quién quiere llegar a ser, basado en su visión a futuro y en cómo describió a esa versión de sí misma.
+
+En cada turno, responde con un JSON que tenga: "assistantReply" (un mensaje breve, cálido y natural para continuar la conversación, o para cerrarla una vez sintetizados los tres textos), "extracted" (todos los datos que puedas inferir con confianza de TODA la conversación hasta ahora, usando null en lo que aún no sepas con certeza), y "done" (true solo cuando estos campos ya tengan un valor no nulo en "extracted": ${REQUIRED_FIELDS.join(', ')}).`;
 }

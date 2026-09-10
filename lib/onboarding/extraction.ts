@@ -4,11 +4,14 @@ export const ExtractedProfileSchema = z.object({
   name: z.string().nullable(),
   currentAge: z.number().int().nullable(),
   futureSelfAge: z.number().int().nullable(),
-  focusArea: z.enum(['carrera', 'salud', 'relaciones', 'finanzas', 'personal']).nullable(),
+  focusArea: z.enum(['carrera', 'salud', 'relaciones', 'finanzas', 'personal', 'paz', 'cuerpo']).nullable(),
   tone: z.enum(['motivador', 'exigente', 'tierno', 'directo']).nullable(),
   values: z.string().nullable(),
   goals: z.array(z.string()).nullable(),
   deliveryHour: z.number().int().nullable(),
+  currentEnergySummary: z.string().nullable(),
+  blockingPattern: z.string().nullable(),
+  futureVision: z.string().nullable(),
 });
 
 export type ExtractedProfile = z.infer<typeof ExtractedProfileSchema>;
@@ -37,6 +40,9 @@ const RawExtractedProfileSchema = z.object({
   values: z.string().nullable(),
   goals: z.array(z.string()).nullable(),
   deliveryHour: z.number().int().nullable(),
+  currentEnergySummary: z.string().nullable(),
+  blockingPattern: z.string().nullable(),
+  futureVision: z.string().nullable(),
 });
 
 export const RawOnboardingTurnSchema = z.object({
@@ -47,7 +53,7 @@ export const RawOnboardingTurnSchema = z.object({
 
 type RawOnboardingTurnResult = z.infer<typeof RawOnboardingTurnSchema>;
 
-const VALID_FOCUS_AREAS = ['carrera', 'salud', 'relaciones', 'finanzas', 'personal'] as const;
+const VALID_FOCUS_AREAS = ['carrera', 'salud', 'relaciones', 'finanzas', 'personal', 'paz', 'cuerpo'] as const;
 const VALID_TONES = ['motivador', 'exigente', 'tierno', 'directo'] as const;
 
 /** Maps a raw Claude turn onto the strict ExtractedProfile, nulling invalid enums. */
@@ -78,6 +84,9 @@ export const EMPTY_EXTRACTED_PROFILE: ExtractedProfile = {
   values: null,
   goals: null,
   deliveryHour: null,
+  currentEnergySummary: null,
+  blockingPattern: null,
+  futureVision: null,
 };
 
 export function mergeExtracted(

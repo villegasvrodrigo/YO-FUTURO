@@ -134,6 +134,109 @@ páginas).
 Modelo `claude-sonnet-5`, SDK oficial de Anthropic, todo el copy en
 español, sin otro proveedor de IA.
 
+## Fase 1 — Revisión: guion real + resultados narrativos (2026-09-10)
+
+Fase 1 ya está implementada y en producción con un guion placeholder de 8
+temas. Esta revisión reemplaza ese placeholder con el guion real (17 pasos)
+y agrega 3 resultados narrativos generados al final. Cambia el modelo de
+datos y el flujo de pantallas; no cambia la arquitectura de extracción por
+turno (`client.messages.parse` + Zod) ya aprobada.
+
+### Modelo de `OnboardingScriptStep` — de "un tema por campo" a "pasos de conversación"
+
+El guion real no mapea 1:1 tema→campo como el placeholder original: la
+mayoría de las 17 preguntas alimentan una síntesis final (los 3
+resultados), no un campo estructurado individual. `OnboardingScriptStep`
+pierde su propiedad `field` — se vuelve una lista ordenada de
+instrucciones de conversación (qué indagar en cada turno), separada de la
+lista fija de campos que el sistema debe intentar llenar antes de marcar
+`done` (ver más abajo). Esto no cambia el punto de inserción del guion:
+sigue siendo edición aislada de `lib/onboarding/script.ts`.
+
+### Modelo de datos — 3 columnas nuevas en `profiles`
+
+```sql
+alter table profiles add column current_energy_summary text;
+alter table profiles add column blocking_pattern text;
+alter table profiles add column future_vision text;
+```
+
+Nullable, 1:1 con el usuario (igual que `values`), sin tabla nueva —
+generadas una sola vez al final de la conversación. Quedan disponibles
+para enriquecer el prompt del mensaje diario en fases futuras (no se usa
+todavía).
+
+### `focus_area` — no es "agregar una opción", es un cambio de taxonomía
+
+La pregunta 1 del guion real da 4 opciones (Dinero y abundancia / Amor y
+relaciones / Paz / Mi cuerpo) que no coinciden con el enum de 5 valores ya
+en producción (`carrera, salud, relaciones, finanzas, personal`).
+Migración aditiva, sin borrar valores existentes:
+
+```sql
+alter type focus_area add value 'paz';
+alter type focus_area add value 'cuerpo';
+```
+
+Mapeo de las opciones del guion a valores del enum:
+
+| Opción del guion | Valor del enum |
+|---|---|
+| Dinero y abundancia | `finanzas` (existente, se reusa) |
+| Amor y relaciones | `relaciones` (existente, se reusa) |
+| Paz | `paz` (nuevo) |
+| Mi cuerpo | `cuerpo` (nuevo) |
+
+`carrera`, `salud`, `personal` quedan en el enum sin usarse — sin riesgo,
+sin necesidad de recrear el tipo.
+
+### Campos que el guion real no cubre — decisiones
+
+El guion de 14 preguntas nunca pregunta `name`, `currentAge`,
+`futureSelfAge`, `tone`, `deliveryHour` ni `timezone`. Decisiones:
+
+- **`deliveryHour`/`timezone`**: sin cambio — se llenan en la pantalla de
+  confirmación/edición como ya ocurre hoy, con el mismo default.
+- **`name`, `currentAge`, `futureSelfAge`**: se agregan 3 pasos ligeros al
+  inicio del guion, antes de las 14 preguntas del diagnóstico emocional,
+  como apertura casual de la conversación.
+- **`tone`**: no se pregunta explícitamente — Claude lo infiere del
+  registro emocional de toda la conversación (uno de los 4 valores ya
+  existentes: motivador, exigente, tierno, directo) y lo entrega como un
+  campo más de la extracción. Queda editable en la confirmación si Claude
+  se equivoca.
+
+### 3 resultados narrativos — generación y presentación
+
+Al llegar a `done`, además de los campos estructurados de siempre, Claude
+entrega 3 textos narrativos nuevos: `currentEnergySummary` ("Tu energía
+actual"), `blockingPattern` ("El patrón que te detiene", sintetizado de
+las preguntas de memoria emocional, relación día a día, y momentos de
+estrés) y `futureVision` ("Quién quieres ser", sintetizado de las
+preguntas de visión a futuro). Generados dinámicamente por Claude a partir
+de las respuestas reales — nunca texto fijo.
+
+**Flujo de pantallas revisado:**
+
+1. Chat (sin cambio en su mecánica: turno a turno, `mergeExtracted`, botón
+   manual de salida ya existente).
+2. Al llegar a `done` → **pantalla nueva de resultados**: los 3 textos en
+   su propio apartado, tratamiento visual "carta" de Papel y Brasa (serif
+   cursiva sobre superficie `dusk-2` con acento `brass-dim`, igual que el
+   mensaje diario en `/dashboard`), solo lectura, botón "Continuar".
+3. Pantalla de confirmación/edición (sin cambio de lógica de guardado) —
+   ahora incluye `focus_area` con las 4 opciones nuevas del guion en vez
+   de las 5 anteriores.
+4. Guardar → mismo insert de siempre a `profiles`/`goals`, más los 3
+   campos narrativos nuevos.
+
+### Restricciones globales (sin cambio)
+
+Modelo `claude-sonnet-5`, SDK oficial de Anthropic, todo el copy en
+español. El patrón de esquema-crudo + normalización para valores fuera de
+enum (agregado en la ronda de correcciones de la revisión final de Fase 1)
+se mantiene y se extiende a los 2 valores nuevos de `focus_area`.
+
 ## Fase 2 — Tareas diarias accionables (diseño de alto nivel)
 
 **Tabla nueva `tasks`:**
