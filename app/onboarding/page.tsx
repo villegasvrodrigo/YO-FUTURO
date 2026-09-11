@@ -357,7 +357,12 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
         { onConflict: 'id' }
       );
       if (profileError) {
-        console.error('[onboarding-confirm] profile upsert failed', profileError);
+        // PostgrestError doesn't stringify usefully via console.error's default
+        // formatting in every environment — log the fields that actually matter.
+        console.error('[onboarding-confirm] profile upsert failed', {
+          message: profileError.message,
+          code: profileError.code,
+        });
         setError('No se pudo guardar tu perfil, intenta de nuevo.');
         return;
       }
@@ -367,7 +372,10 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
         .from('goals')
         .insert(nonEmptyGoals.map((description) => ({ user_id: user.id, description })));
       if (goalsError) {
-        console.error('[onboarding-confirm] goals insert failed', goalsError);
+        console.error('[onboarding-confirm] goals insert failed', {
+          message: goalsError.message,
+          code: goalsError.code,
+        });
         setError('No se pudieron guardar tus metas, intenta de nuevo.');
         return;
       }

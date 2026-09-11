@@ -51,19 +51,6 @@ export async function runOnboardingTurn(
     throw new Error(TURN_FAILED_MESSAGE);
   }
 
-  // TEMPORARY — investigating intermittent garbled/blank replies (reported 2026-09-10).
-  // Logs the untouched text exactly as the API returned it, before any parsing/merging
-  // on our side, so a corrupted case can be compared against what gets saved/displayed.
-  // TODO: remove this logging before merging this branch.
-  console.log(
-    '[onboarding-chat][raw]',
-    JSON.stringify({
-      stop_reason: response.stop_reason,
-      usage: response.usage,
-      content: response.content,
-    })
-  );
-
   const rawText = response.content
     .filter((block): block is Anthropic.TextBlock => block.type === 'text')
     .map((block) => block.text)
