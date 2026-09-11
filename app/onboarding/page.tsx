@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
 import { validateProfileStep, validateGoals, validateDeliveryHour } from '@/lib/onboarding/validate';
@@ -10,6 +10,11 @@ import {
   type ChatMessage,
   type ExtractedProfile,
 } from '@/lib/onboarding/extraction';
+import {
+  loadOnboardingProgress,
+  saveOnboardingProgress,
+  clearOnboardingProgress,
+} from '@/lib/onboarding/progress';
 import { ONBOARDING_GREETING } from '@/lib/onboarding/script';
 import type { FocusArea, Tone } from '@/lib/types';
 
@@ -28,6 +33,60 @@ export default function OnboardingPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastFailedTranscript, setLastFailedTranscript] = useState<ChatMessage[] | null>(null);
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [synthesisError, setSynthesisError] = useState<string | null>(null);
+  const [synthesisTranscript, setSynthesisTranscript] = useState<ChatMessage[] | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  // Resume a previously-saved conversation on load, so a refresh, a closed tab, or a
+  // return the next day picks up exactly where the user left off instead of restarting.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        if (!cancelled) setLoaded(true);
+        return;
+      }
+      if (!cancelled) setUserId(user.id);
+
+      const progress = await loadOnboardingProgress(supabase, user.id);
+      if (cancelled) return;
+      if (!progress) {
+        setLoaded(true);
+        return;
+      }
+
+      setTranscript(progress.transcript);
+      setExtracted(progress.extracted);
+      if (progress.done) {
+        const hasNarrative =
+          progress.extracted.currentEnergySummary !== null ||
+          progress.extracted.blockingPattern !== null ||
+          progress.extracted.futureVision !== null;
+        if (hasNarrative) {
+          setDone(true);
+        } else {
+          // The script finished last time but extraction/synthesis never completed — pick that back up.
+          await finalizeOnboarding(progress.transcript, progress.extracted);
+        }
+      }
+      if (!cancelled) setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // Runs once on mount only — resuming saved progress is a one-time hydration step.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function persistProgress(t: ChatMessage[], e: ExtractedProfile, d: boolean) {
+    if (!userId) return;
+    const supabase = createClient();
+    await saveOnboardingProgress(supabase, userId, { transcript: t, extracted: e, done: d });
+  }
 
   async function requestTurn(nextTranscript: ChatMessage[]) {
     if (sending) return;
@@ -60,10 +119,15 @@ export default function OnboardingPage() {
         throw new Error(message);
       }
       const result = await res.json();
-      setExtracted((prev) => mergeExtracted(prev, result.extracted));
-      setTranscript([...nextTranscript, { role: 'assistant', content: result.assistantReply }]);
+      const finalTranscript = [...nextTranscript, { role: 'assistant' as const, content: result.assistantReply }];
+      setTranscript(finalTranscript);
       setLastFailedTranscript(null);
-      if (result.done) setDone(true);
+      await persistProgress(finalTranscript, extracted, result.finished);
+      // The turn call only ever returns plain conversational text now — the profile
+      // fields and narrative results come from two separate, dedicated calls kicked
+      // off once the script signals it's finished (via Claude's own [FIN] marker, or
+      // the safety-cap fallback inside runOnboardingTurn).
+      if (result.finished) await finalizeOnboarding(finalTranscript, extracted);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo continuar la conversación');
       // Keep the accumulated transcript so the same turn can be retried inline.
@@ -71,6 +135,49 @@ export default function OnboardingPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  // Runs once the script is finished (naturally, via the safety cap, or because the
+  // user cut it short with "Ya terminé") — extraction and synthesis are independent,
+  // both need only the finished transcript, so they run in parallel.
+  async function finalizeOnboarding(finalTranscript: ChatMessage[], baseExtracted: ExtractedProfile) {
+    setSynthesizing(true);
+    setSynthesisError(null);
+    try {
+      const [extraction, synthesis] = await Promise.all([
+        fetchJson('/api/onboarding/extract', finalTranscript, 'No se pudieron extraer tus datos'),
+        fetchJson('/api/onboarding/synthesize', finalTranscript, 'No se pudieron generar tus resultados'),
+      ]);
+      const mergedExtracted = mergeExtracted(mergeExtracted(baseExtracted, extraction), synthesis);
+      setExtracted(mergedExtracted);
+      await persistProgress(finalTranscript, mergedExtracted, true);
+      setSynthesisTranscript(null);
+      setDone(true);
+    } catch (err) {
+      setSynthesisError(err instanceof Error ? err.message : 'No se pudieron generar tus resultados');
+      setSynthesisTranscript(finalTranscript);
+    } finally {
+      setSynthesizing(false);
+    }
+  }
+
+  async function fetchJson(url: string, transcript: ChatMessage[], defaultErrorMessage: string) {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript }),
+    });
+    if (!res.ok) {
+      let message = defaultErrorMessage;
+      try {
+        const body = await res.json();
+        message = body.error ?? message;
+      } catch {
+        // Non-JSON error body (e.g. a platform error page): keep the default message.
+      }
+      throw new Error(message);
+    }
+    return res.json();
   }
 
   async function sendMessage() {
@@ -86,10 +193,27 @@ export default function OnboardingPage() {
     await requestTurn(lastFailedTranscript);
   }
 
+  async function retryFinalize() {
+    if (!synthesisTranscript) return;
+    await finalizeOnboarding(synthesisTranscript, extracted);
+  }
+
   const hasNarrativeResults =
     extracted.currentEnergySummary !== null ||
     extracted.blockingPattern !== null ||
     extracted.futureVision !== null;
+
+  if (!loaded) {
+    return <LoadingScreen />;
+  }
+
+  if (synthesizing) {
+    return <SynthesizingScreen />;
+  }
+
+  if (synthesisError) {
+    return <SynthesisErrorScreen message={synthesisError} onRetry={retryFinalize} />;
+  }
 
   if (done && !resultsConfirmed && hasNarrativeResults) {
     return <ResultsScreen extracted={extracted} onContinue={() => setResultsConfirmed(true)} />;
@@ -116,6 +240,11 @@ export default function OnboardingPage() {
               {m.content}
             </div>
           ))}
+          {sending && (
+            <div className="rounded-lg bg-dusk-2 px-4 py-3 text-[15px] italic text-mist" role="status">
+              Escribiendo…
+            </div>
+          )}
         </div>
         {error && (
           <div className="mb-4 flex items-center gap-2.5">
@@ -156,8 +285,9 @@ export default function OnboardingPage() {
         </div>
         <button
           type="button"
-          onClick={() => setDone(true)}
-          className="mt-3 text-sm text-mist underline underline-offset-4 transition-colors hover:text-brass"
+          onClick={() => finalizeOnboarding(transcript, extracted)}
+          disabled={sending}
+          className="mt-3 text-sm text-mist underline underline-offset-4 transition-colors hover:text-brass disabled:opacity-50"
         >
           Ya terminé, revisar mis datos
         </button>
@@ -179,9 +309,15 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
   const [deliveryHour, setDeliveryHour] = useState(extracted.deliveryHour ?? 8);
   const [timezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const router = useRouter();
 
   async function confirmAndSave() {
+    // Guards against a double-click sending two concurrent inserts — with no protection
+    // here, the second one always lost the race to the profiles table's primary key and
+    // surfaced a raw Postgres error instead of a friendly message.
+    if (saving) return;
+
     const profileErr = validateProfileStep({ name, currentAge, futureSelfAge, focusArea, tone, values });
     if (profileErr) return setError(profileErr);
     const goalsErr = validateGoals(goals);
@@ -189,39 +325,70 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
     const hourErr = validateDeliveryHour(deliveryHour);
     if (hourErr) return setError(hourErr);
     setError(null);
+    setSaving(true);
 
-    const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setError('Sesión expirada, vuelve a iniciar sesión.');
-      return;
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError('Sesión expirada, vuelve a iniciar sesión.');
+        return;
+      }
+
+      // Upsert, not insert: a prior click (or a retry after this same confirmation
+      // failed partway through, like this one) may have already created the row, and
+      // "save again" should update it in place rather than fail on the primary key.
+      const { error: profileError } = await supabase.from('profiles').upsert(
+        {
+          id: user.id,
+          name,
+          current_age: currentAge,
+          future_self_age: futureSelfAge,
+          focus_area: focusArea,
+          tone,
+          values,
+          delivery_hour_local: deliveryHour,
+          timezone,
+          onboarding_completed: true,
+          current_energy_summary: extracted.currentEnergySummary,
+          blocking_pattern: extracted.blockingPattern,
+          future_vision: extracted.futureVision,
+        },
+        { onConflict: 'id' }
+      );
+      if (profileError) {
+        // PostgrestError doesn't stringify usefully via console.error's default
+        // formatting in every environment — log the fields that actually matter.
+        console.error('[onboarding-confirm] profile upsert failed', {
+          message: profileError.message,
+          code: profileError.code,
+        });
+        setError('No se pudo guardar tu perfil, intenta de nuevo.');
+        return;
+      }
+
+      const nonEmptyGoals = goals.map((g) => g.trim()).filter(Boolean);
+      const { error: goalsError } = await supabase
+        .from('goals')
+        .insert(nonEmptyGoals.map((description) => ({ user_id: user.id, description })));
+      if (goalsError) {
+        console.error('[onboarding-confirm] goals insert failed', {
+          message: goalsError.message,
+          code: goalsError.code,
+        });
+        setError('No se pudieron guardar tus metas, intenta de nuevo.');
+        return;
+      }
+
+      // The profile now holds everything permanently — the in-progress conversation
+      // snapshot has served its purpose and would only cause confusion if left behind.
+      await clearOnboardingProgress(supabase, user.id);
+
+      router.push('/dashboard');
+      router.refresh();
+    } finally {
+      setSaving(false);
     }
-
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: user.id,
-      name,
-      current_age: currentAge,
-      future_self_age: futureSelfAge,
-      focus_area: focusArea,
-      tone,
-      values,
-      delivery_hour_local: deliveryHour,
-      timezone,
-      onboarding_completed: true,
-      current_energy_summary: extracted.currentEnergySummary,
-      blocking_pattern: extracted.blockingPattern,
-      future_vision: extracted.futureVision,
-    });
-    if (profileError) return setError(profileError.message);
-
-    const nonEmptyGoals = goals.map((g) => g.trim()).filter(Boolean);
-    const { error: goalsError } = await supabase
-      .from('goals')
-      .insert(nonEmptyGoals.map((description) => ({ user_id: user.id, description })));
-    if (goalsError) return setError(goalsError.message);
-
-    router.push('/dashboard');
-    router.refresh();
   }
 
   return (
@@ -348,11 +515,58 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
           <button
             type="button"
             onClick={confirmAndSave}
-            className="mt-2 w-full rounded-lg bg-brass px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90"
+            disabled={saving}
+            className="mt-2 w-full rounded-lg bg-brass px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90 disabled:opacity-50"
           >
-            Confirmar y empezar
+            {saving ? 'Guardando…' : 'Confirmar y empezar'}
           </button>
         </div>
+      </div>
+    </main>
+  );
+}
+
+function LoadingScreen() {
+  return (
+    <main className="flex flex-1 items-center justify-center px-6 py-16">
+      <p role="status" className="font-mono text-xs tracking-[0.14em] text-mist">
+        CARGANDO…
+      </p>
+    </main>
+  );
+}
+
+function SynthesizingScreen() {
+  return (
+    <main className="flex flex-1 items-center justify-center px-6 py-16">
+      <div className="w-full max-w-md text-center">
+        <p className="mb-3 font-mono text-xs tracking-[0.14em] text-brass">TU RADIOGRAFÍA</p>
+        <h1 role="status" className="text-balance font-serif text-2xl italic text-parchment">
+          Preparando tus resultados…
+        </h1>
+        <p className="mt-3 text-sm text-mist">
+          Esto puede tardar un poco más — estamos leyendo toda la conversación con cuidado.
+        </p>
+      </div>
+    </main>
+  );
+}
+
+function SynthesisErrorScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <main className="flex flex-1 items-center justify-center px-6 py-16">
+      <div className="w-full max-w-md text-center">
+        <p className="mb-3 font-mono text-xs tracking-[0.14em] text-brass">TU RADIOGRAFÍA</p>
+        <p role="alert" className="mb-5 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+          {message}
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-lg border border-rule px-5 py-2.5 text-sm font-semibold text-parchment transition-colors hover:border-brass/60"
+        >
+          Reintentar
+        </button>
       </div>
     </main>
   );

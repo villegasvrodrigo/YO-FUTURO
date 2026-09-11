@@ -11,7 +11,6 @@ vi.mock('@/lib/onboarding/chat', () => ({
 
 import { createClient } from '@/lib/supabase/server';
 import { runOnboardingTurn } from '@/lib/onboarding/chat';
-import { EMPTY_EXTRACTED_PROFILE } from '@/lib/onboarding/extraction';
 import { POST } from './route';
 
 function mockAuthenticatedUser() {
@@ -61,8 +60,7 @@ describe('POST /api/onboarding/chat', () => {
     mockAuthenticatedUser();
     const turn = {
       assistantReply: '¿Qué edad tienes?',
-      extracted: { ...EMPTY_EXTRACTED_PROFILE, name: 'Ana' },
-      done: false,
+      finished: false,
     };
     (runOnboardingTurn as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(turn);
 
