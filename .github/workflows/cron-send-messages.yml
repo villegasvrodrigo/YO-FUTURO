@@ -1,0 +1,31 @@
+name: Cron - enviar mensajes diarios
+
+# Vercel Hobby solo permite cron jobs de una vez al día (y sin hora exacta), pero
+# esta app necesita revisar cada hora quién tiene su entrega en curso. Por eso el
+# disparador vive aquí en vez de en vercel.json — ver README para más contexto.
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Llamar a /api/cron/send-messages
+        run: |
+          status=$(curl -sS -o /tmp/response.txt -w '%{http_code}' \
+            --max-time 30 \
+            -X GET "${CRON_TARGET_URL}/api/cron/send-messages" \
+            -H "Authorization: Bearer ${CRON_SECRET}")
+          echo "HTTP status: $status"
+          echo "--- Respuesta ---"
+          cat /tmp/response.txt
+          echo ""
+          if [ "$status" != "200" ]; then
+            echo "::error::/api/cron/send-messages devolvió $status en vez de 200"
+            exit 1
+          fi
+        env:
+          CRON_TARGET_URL: ${{ secrets.CRON_TARGET_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

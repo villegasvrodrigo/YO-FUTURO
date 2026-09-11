@@ -58,13 +58,25 @@ El remitente está fijado en `lib/email/send.ts` como
 dashboard de Resend** (Domains → Add Domain, y añadir los registros DNS) o los
 envíos reales fallarán. Cámbialo si usas otro dominio.
 
-## Cron en Vercel
+## Cron: GitHub Actions, no Vercel
 
-`vercel.json` registra `GET /api/cron/send-messages` cada hora en punto. Para que
-funcione en producción, `CRON_SECRET` debe estar definido en las variables de
-entorno del proyecto en Vercel: Vercel lo envía automáticamente como header
-`Authorization: Bearer <CRON_SECRET>` al invocar el cron. Si la variable no está
-definida, la ruta rechaza toda petición con 401.
+El plan Hobby de Vercel solo permite cron jobs una vez al día (y sin hora exacta),
+pero esta app necesita revisar cada hora quién tiene su entrega en curso — por eso
+`GET /api/cron/send-messages` NO se registra en `vercel.json`. En su lugar,
+`.github/workflows/cron-send-messages.yml` corre cada hora en punto (y también se
+puede disparar a mano desde la pestaña Actions de GitHub) y llama a esa ruta con
+`Authorization: Bearer <CRON_SECRET>`.
+
+Para que funcione, el repositorio de GitHub necesita estos dos secretos
+(Settings → Secrets and variables → Actions):
+
+| Secreto | Valor |
+| --- | --- |
+| `CRON_TARGET_URL` | La URL base del despliegue en Vercel, sin `/` al final (ej. `https://tu-app.vercel.app`) |
+| `CRON_SECRET` | El mismo valor configurado como variable de entorno `CRON_SECRET` en el proyecto de Vercel |
+
+Si la variable `CRON_SECRET` no coincide entre GitHub y Vercel, la ruta rechaza la
+petición con 401 y el workflow falla de forma visible en la pestaña Actions.
 
 ## Desarrollo y tests
 
