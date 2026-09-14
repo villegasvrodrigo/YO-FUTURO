@@ -16,6 +16,12 @@ import {
   clearOnboardingProgress,
 } from '@/lib/onboarding/progress';
 import { ONBOARDING_GREETING } from '@/lib/onboarding/script';
+import {
+  fetchJsonWithTimeout,
+  EXTRACT_TIMEOUT_MS,
+  SYNTHESIZE_TIMEOUT_MS,
+  SLOW_SYNTHESIS_WARNING_MS,
+} from '@/lib/onboarding/fetchWithTimeout';
 import type { FocusArea, Tone } from '@/lib/types';
 
 const fieldClass =
@@ -38,6 +44,7 @@ export default function OnboardingPage() {
   const [synthesisTranscript, setSynthesisTranscript] = useState<ChatMessage[] | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [showSlowWarning, setShowSlowWarning] = useState(false);
 
   // Resume a previously-saved conversation on load, so a refresh, a closed tab, or a
   // return the next day picks up exactly where the user left off instead of restarting.
@@ -61,6 +68,9 @@ export default function OnboardingPage() {
 
       setTranscript(progress.transcript);
       setExtracted(progress.extracted);
+      // Mark hydration done before any resumed finalize call, so the render's
+      // `!loaded` check never masks the `synthesizing` screen while it awaits below.
+      if (!cancelled) setLoaded(true);
       if (progress.done) {
         const hasNarrative =
           progress.extracted.currentEnergySummary !== null ||
@@ -73,7 +83,6 @@ export default function OnboardingPage() {
           await finalizeOnboarding(progress.transcript, progress.extracted);
         }
       }
-      if (!cancelled) setLoaded(true);
     })();
     return () => {
       cancelled = true;
@@ -143,10 +152,23 @@ export default function OnboardingPage() {
   async function finalizeOnboarding(finalTranscript: ChatMessage[], baseExtracted: ExtractedProfile) {
     setSynthesizing(true);
     setSynthesisError(null);
+    setShowSlowWarning(false);
     try {
       const [extraction, synthesis] = await Promise.all([
-        fetchJson('/api/onboarding/extract', finalTranscript, 'No se pudieron extraer tus datos'),
-        fetchJson('/api/onboarding/synthesize', finalTranscript, 'No se pudieron generar tus resultados'),
+        fetchJsonWithTimeout(
+          '/api/onboarding/extract',
+          finalTranscript,
+          'No se pudieron extraer tus datos',
+          EXTRACT_TIMEOUT_MS,
+          'La extracción de tus datos está tardando demasiado. Intenta de nuevo.'
+        ),
+        fetchJsonWithTimeout(
+          '/api/onboarding/synthesize',
+          finalTranscript,
+          'No se pudieron generar tus resultados',
+          SYNTHESIZE_TIMEOUT_MS,
+          'La generación de tus resultados está tardando demasiado. Intenta de nuevo.'
+        ),
       ]);
       const mergedExtracted = mergeExtracted(mergeExtracted(baseExtracted, extraction), synthesis);
       setExtracted(mergedExtracted);
@@ -161,24 +183,14 @@ export default function OnboardingPage() {
     }
   }
 
-  async function fetchJson(url: string, transcript: ChatMessage[], defaultErrorMessage: string) {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ transcript }),
-    });
-    if (!res.ok) {
-      let message = defaultErrorMessage;
-      try {
-        const body = await res.json();
-        message = body.error ?? message;
-      } catch {
-        // Non-JSON error body (e.g. a platform error page): keep the default message.
-      }
-      throw new Error(message);
-    }
-    return res.json();
-  }
+  // Shows a "this is taking a while" note on the synthesizing screen once the wait
+  // crosses SLOW_SYNTHESIS_WARNING_MS, well before the hard per-request timeouts above
+  // would fire — so a merely-slow model call doesn't look identical to a stuck one.
+  useEffect(() => {
+    if (!synthesizing) return;
+    const timer = setTimeout(() => setShowSlowWarning(true), SLOW_SYNTHESIS_WARNING_MS);
+    return () => clearTimeout(timer);
+  }, [synthesizing]);
 
   async function sendMessage() {
     if (!input.trim() || sending) return;
@@ -208,7 +220,7 @@ export default function OnboardingPage() {
   }
 
   if (synthesizing) {
-    return <SynthesizingScreen />;
+    return <SynthesizingScreen slow={showSlowWarning} />;
   }
 
   if (synthesisError) {
@@ -536,7 +548,7 @@ function LoadingScreen() {
   );
 }
 
-function SynthesizingScreen() {
+function SynthesizingScreen({ slow }: { slow: boolean }) {
   return (
     <main className="flex flex-1 items-center justify-center px-6 py-16">
       <div className="w-full max-w-md text-center">
@@ -547,6 +559,12 @@ function SynthesizingScreen() {
         <p className="mt-3 text-sm text-mist">
           Esto puede tardar un poco más — estamos leyendo toda la conversación con cuidado.
         </p>
+        {slow && (
+          <p role="status" className="mt-3 text-sm text-brass">
+            Esto está tardando más de lo normal. Seguimos intentándolo — si no termina pronto, te
+            daremos la opción de reintentar.
+          </p>
+        )}
       </div>
     </main>
   );
