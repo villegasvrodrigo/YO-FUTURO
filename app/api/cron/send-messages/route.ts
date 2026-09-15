@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isDueNow, isSameLocalDay } from '@/lib/messages/delivery';
+import { isSameLocalDay, summarizeDueProfiles } from '@/lib/messages/delivery';
 import { generateMessage } from '@/lib/messages/generate';
 import { sendDailyEmail } from '@/lib/email/send';
 import type { Profile, Goal, MessageRecord } from '@/lib/types';
@@ -32,16 +32,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const dueProfiles = (profiles as Profile[]).filter((p) => {
-    try {
-      return isDueNow(p.delivery_hour_local, p.timezone, now);
-    } catch (err) {
-      // Una `timezone` inválida hace que Intl.DateTimeFormat lance RangeError.
-      // Se excluye ese perfil en lugar de tumbar el batch completo.
-      console.error(`[cron] timezone inválida para el perfil ${p.id}:`, err);
-      return false;
-    }
+  const summary = summarizeDueProfiles(profiles as Profile[], now);
+  console.log(
+    `[cron] hora de referencia (UTC): ${summary.nowUtcIso} — perfiles con onboarding completo: ${summary.totalProfiles}, elegibles esta hora: ${summary.due.length}, excluidos por timezone inválida: ${summary.excluded.length}`
+  );
+  summary.due.forEach((p) => {
+    console.log(`[cron]   elegible: perfil ${p.id} (timezone=${p.timezone}, hora local=${p.localHour})`);
   });
+  summary.excluded.forEach((p) => {
+    // Una `timezone` inválida hace que Intl.DateTimeFormat lance RangeError.
+    // Se excluye ese perfil en lugar de tumbar el batch completo.
+    console.error(`[cron]   excluido: perfil ${p.id} (timezone=${p.timezone}) — ${p.error}`);
+  });
+
+  const dueProfileIds = new Set(summary.due.map((p) => p.id));
+  const dueProfiles = (profiles as Profile[]).filter((p) => dueProfileIds.has(p.id));
 
   // Tandas secuenciales: dentro de cada tanda los usuarios corren en
   // paralelo, pero se espera a que termine antes de empezar la siguiente.
@@ -59,7 +64,7 @@ export async function GET(request: NextRequest) {
   results.forEach((result, index) => {
     if (result.status === 'rejected') {
       console.error(
-        `[cron] falló el procesamiento del perfil ${dueProfiles[index]?.id}:`,
+        `[cron]   falló: perfil ${dueProfiles[index]?.id}:`,
         result.reason
       );
     }
@@ -67,6 +72,8 @@ export async function GET(request: NextRequest) {
 
   const succeeded = results.filter((r) => r.status === 'fulfilled').length;
   const failed = results.length - succeeded;
+
+  console.log(`[cron] resumen: procesados=${results.length}, exitosos=${succeeded}, fallidos=${failed}`);
 
   return NextResponse.json({ processed: results.length, succeeded, failed });
 }
@@ -119,6 +126,9 @@ async function processUser(
     // Already sent a message today (local calendar day) for this user —
     // skip to avoid duplicate sends from DST fall-back repeated hours or
     // an overlapping/retried cron invocation.
+    console.log(
+      `[cron]   saltado: perfil ${profile.id} — ya se generó un mensaje hoy (mensaje ${lastMessage.id}, ${lastMessage.generated_at})`
+    );
     return;
   }
 
@@ -160,4 +170,6 @@ async function processUser(
     status: emailResult.status,
     error: emailResult.error,
   });
+
+  console.log(`[cron]   enviado: perfil ${profile.id} (mensaje ${inserted.id}, email status=${emailResult.status})`);
 }

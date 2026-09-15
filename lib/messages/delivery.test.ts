@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isDueNow, isSameLocalDay } from './delivery';
+import { isDueNow, isSameLocalDay, getLocalHour, summarizeDueProfiles } from './delivery';
 
 describe('isDueNow', () => {
   it('returns true when the local hour matches the delivery hour', () => {
@@ -48,5 +48,57 @@ describe('isSameLocalDay', () => {
     const a = new Date('2026-01-16T03:00:00Z');
     const b = new Date('2026-01-15T23:00:00Z');
     expect(isSameLocalDay(a, b, 'America/Los_Angeles')).toBe(true);
+  });
+});
+
+describe('getLocalHour', () => {
+  it('returns the local hour for a given instant and timezone', () => {
+    const now = new Date('2026-01-15T14:00:00Z');
+    expect(getLocalHour('America/Mexico_City', now)).toBe(8);
+  });
+
+  it('normalizes midnight to 0 instead of 24', () => {
+    const now = new Date('2026-01-15T06:00:00Z');
+    expect(getLocalHour('America/Mexico_City', now)).toBe(0);
+  });
+
+  it('throws for an invalid IANA timezone', () => {
+    const now = new Date('2026-01-15T14:00:00Z');
+    expect(() => getLocalHour('Not/AZone', now)).toThrow();
+  });
+});
+
+describe('summarizeDueProfiles', () => {
+  // 2026-01-15T14:00:00Z is 08:00 in America/Mexico_City (UTC-6).
+  const now = new Date('2026-01-15T14:00:00Z');
+
+  it('separates due profiles from non-due ones, keeping the total count', () => {
+    const profiles = [
+      { id: 'a', timezone: 'America/Mexico_City', delivery_hour_local: 8 },
+      { id: 'b', timezone: 'America/Mexico_City', delivery_hour_local: 9 },
+    ];
+
+    const summary = summarizeDueProfiles(profiles, now);
+
+    expect(summary.totalProfiles).toBe(2);
+    expect(summary.due).toEqual([{ id: 'a', timezone: 'America/Mexico_City', localHour: 8 }]);
+    expect(summary.excluded).toEqual([]);
+  });
+
+  it('excludes a profile with an invalid timezone instead of throwing, recording why', () => {
+    const profiles = [{ id: 'bad', timezone: 'Not/AZone', delivery_hour_local: 8 }];
+
+    const summary = summarizeDueProfiles(profiles, now);
+
+    expect(summary.due).toEqual([]);
+    expect(summary.excluded).toHaveLength(1);
+    expect(summary.excluded[0].id).toBe('bad');
+    expect(summary.excluded[0].error).toBeTruthy();
+  });
+
+  it('reports the reference instant as an ISO string', () => {
+    const summary = summarizeDueProfiles([], now);
+
+    expect(summary.nowUtcIso).toBe(now.toISOString());
   });
 });
