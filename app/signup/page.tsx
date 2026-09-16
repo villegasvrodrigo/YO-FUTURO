@@ -25,7 +25,9 @@ export default function SignupPage() {
       // Con "Confirm email" activado en Supabase, el registro no devuelve
       // sesión: redirigir aquí haría que el middleware devolviera al login
       // sin explicación.
-      setNotice('Revisa tu correo para confirmar tu cuenta antes de continuar.');
+      setNotice(
+        "Te enviamos un correo para confirmar tu cuenta. Si no lo ves en unos minutos, revisa tu carpeta de Spam o Promociones y márcalo como 'No es spam'. El remitente es no-reply@frequency.rodrigovillegasvilla.com."
+      );
       return;
     }
     router.push('/onboarding');
