@@ -1,4 +1,4 @@
-const PUBLIC_ROUTES = new Set(['/', '/login', '/signup']);
+const PUBLIC_ROUTES = new Set(['/', '/login', '/signup', '/auth/confirm']);
 
 export function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.has(pathname)) return true;

@@ -1,13 +1,24 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  // Prellenado con el error que trae el redirect de /auth/confirm cuando un
+  // enlace de confirmación es inválido o ya expiró.
+  const [error, setError] = useState<string | null>(searchParams.get('error'));
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {

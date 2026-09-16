@@ -15,6 +15,10 @@ describe('isPublicRoute', () => {
     expect(isPublicRoute('/api/cron/send-messages')).toBe(true);
   });
 
+  it('treats the email confirmation callback as public (no session exists yet)', () => {
+    expect(isPublicRoute('/auth/confirm')).toBe(true);
+  });
+
   it('treats dashboard, perfil, historial and onboarding as protected', () => {
     expect(isPublicRoute('/dashboard')).toBe(false);
     expect(isPublicRoute('/perfil')).toBe(false);
