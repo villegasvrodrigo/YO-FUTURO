@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
-import { isPublicRoute } from '@/lib/auth/routes';
+import { isPublicRoute, requiresCompletedOnboarding } from '@/lib/auth/routes';
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -30,6 +30,24 @@ export async function middleware(request: NextRequest) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     return NextResponse.redirect(loginUrl);
+  }
+
+  if (user && requiresCompletedOnboarding(request.nextUrl.pathname)) {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('onboarding_completed')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      // No bloquear al usuario por un problema al consultar el perfil —
+      // solo dejarlo pasar y registrar el error para investigarlo.
+      console.error('[middleware] no se pudo verificar el estado del onboarding:', error);
+    } else if (!profile || !profile.onboarding_completed) {
+      const onboardingUrl = request.nextUrl.clone();
+      onboardingUrl.pathname = '/onboarding';
+      return NextResponse.redirect(onboardingUrl);
+    }
   }
 
   return response;
