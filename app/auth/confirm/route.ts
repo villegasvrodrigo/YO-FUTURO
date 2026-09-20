@@ -27,6 +27,13 @@ export async function GET(request: NextRequest) {
     return redirectToLogin(url);
   }
 
+  // Un enlace de recuperación de contraseña deja sesión igual que cualquier
+  // otro tipo, pero el destino correcto es fijar la contraseña nueva, no
+  // arrancar el onboarding.
+  if (params.type === 'recovery') {
+    return NextResponse.redirect(new URL('/auth/nueva-password', url));
+  }
+
   // El middleware ya manda al dashboard a quien tenga onboarding_completed en
   // true, así que mandar siempre a /onboarding sirve tanto para altas nuevas
   // como para quien confirme un cambio de correo ya con el onboarding hecho.

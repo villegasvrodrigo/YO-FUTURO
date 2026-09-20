@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
 
@@ -79,6 +80,12 @@ function LoginForm() {
             Entrar
           </button>
         </form>
+        <Link
+          href="/login/recuperar"
+          className="mt-3 block text-center text-sm text-mist underline underline-offset-4 transition-colors hover:text-brass"
+        >
+          ¿Olvidaste tu contraseña?
+        </Link>
       </div>
     </main>
   );

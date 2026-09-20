@@ -68,4 +68,13 @@ describe('GET /auth/confirm', () => {
 
     expect(locationOf(response).pathname).toBe('/onboarding');
   });
+
+  it('redirects to /auth/nueva-password when a recovery link verifies successfully', async () => {
+    const verifyOtp = mockVerifyOtp({ error: null });
+
+    const response = await GET(buildRequest('?token_hash=abc123&type=recovery'));
+
+    expect(verifyOtp).toHaveBeenCalledWith({ token_hash: 'abc123', type: 'recovery' });
+    expect(locationOf(response).pathname).toBe('/auth/nueva-password');
+  });
 });

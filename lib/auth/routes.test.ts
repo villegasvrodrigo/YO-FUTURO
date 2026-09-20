@@ -19,6 +19,14 @@ describe('isPublicRoute', () => {
     expect(isPublicRoute('/auth/confirm')).toBe(true);
   });
 
+  it('treats the "forgot password" request page as public (no session exists yet)', () => {
+    expect(isPublicRoute('/login/recuperar')).toBe(true);
+  });
+
+  it('treats the "set new password" page as protected (requires the recovery session)', () => {
+    expect(isPublicRoute('/auth/nueva-password')).toBe(false);
+  });
+
   it('treats dashboard, perfil, historial and onboarding as protected', () => {
     expect(isPublicRoute('/dashboard')).toBe(false);
     expect(isPublicRoute('/perfil')).toBe(false);
@@ -49,5 +57,13 @@ describe('requiresCompletedOnboarding', () => {
     expect(requiresCompletedOnboarding('/dashboard')).toBe(true);
     expect(requiresCompletedOnboarding('/perfil')).toBe(true);
     expect(requiresCompletedOnboarding('/historial')).toBe(true);
+  });
+
+  it('does not require it on the "set new password" page (mid-recovery, no profile check yet)', () => {
+    expect(requiresCompletedOnboarding('/auth/nueva-password')).toBe(false);
+  });
+
+  it('does not require it on the "forgot password" request page (it is public anyway)', () => {
+    expect(requiresCompletedOnboarding('/login/recuperar')).toBe(false);
   });
 });

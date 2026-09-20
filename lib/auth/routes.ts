@@ -1,4 +1,4 @@
-const PUBLIC_ROUTES = new Set(['/', '/login', '/signup', '/auth/confirm']);
+const PUBLIC_ROUTES = new Set(['/', '/login', '/signup', '/auth/confirm', '/login/recuperar']);
 
 export function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.has(pathname)) return true;
@@ -18,5 +18,9 @@ export function requiresCompletedOnboarding(pathname: string): boolean {
   if (pathname.startsWith('/api/')) return false;
   if (isPublicRoute(pathname)) return false;
   if (pathname === '/onboarding' || pathname.startsWith('/onboarding/')) return false;
+  // A mitad de un flujo de recuperación de contraseña: ya hay sesión (la dejó
+  // verifyOtp), pero forzar el onboarding aquí interrumpiría fijar la
+  // contraseña nueva antes de mandar al usuario a cualquier otro lado.
+  if (pathname === '/auth/nueva-password') return false;
   return true;
 }
