@@ -16,6 +16,7 @@ import {
   clearOnboardingProgress,
 } from '@/lib/onboarding/progress';
 import { ONBOARDING_GREETING } from '@/lib/onboarding/script';
+import { confirmOnboarding } from '@/lib/onboarding/confirmSave';
 import {
   fetchJsonWithTimeout,
   EXTRACT_TIMEOUT_MS,
@@ -347,48 +348,29 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
         return;
       }
 
-      // Upsert, not insert: a prior click (or a retry after this same confirmation
-      // failed partway through, like this one) may have already created the row, and
-      // "save again" should update it in place rather than fail on the primary key.
-      const { error: profileError } = await supabase.from('profiles').upsert(
+      // Guarda las metas antes de marcar el onboarding como completo — si eso
+      // falla, el usuario debe poder reintentar sin haber quedado ya "terminado"
+      // con cero metas guardadas (ver confirmOnboarding para el detalle).
+      const result = await confirmOnboarding(
+        supabase,
+        user.id,
         {
-          id: user.id,
           name,
-          current_age: currentAge,
-          future_self_age: futureSelfAge,
-          focus_area: focusArea,
+          currentAge,
+          futureSelfAge,
+          focusArea,
           tone,
           values,
-          delivery_hour_local: deliveryHour,
+          deliveryHour,
           timezone,
-          onboarding_completed: true,
-          current_energy_summary: extracted.currentEnergySummary,
-          blocking_pattern: extracted.blockingPattern,
-          future_vision: extracted.futureVision,
+          currentEnergySummary: extracted.currentEnergySummary,
+          blockingPattern: extracted.blockingPattern,
+          futureVision: extracted.futureVision,
         },
-        { onConflict: 'id' }
+        goals
       );
-      if (profileError) {
-        // PostgrestError doesn't stringify usefully via console.error's default
-        // formatting in every environment — log the fields that actually matter.
-        console.error('[onboarding-confirm] profile upsert failed', {
-          message: profileError.message,
-          code: profileError.code,
-        });
-        setError('No se pudo guardar tu perfil, intenta de nuevo.');
-        return;
-      }
-
-      const nonEmptyGoals = goals.map((g) => g.trim()).filter(Boolean);
-      const { error: goalsError } = await supabase
-        .from('goals')
-        .insert(nonEmptyGoals.map((description) => ({ user_id: user.id, description })));
-      if (goalsError) {
-        console.error('[onboarding-confirm] goals insert failed', {
-          message: goalsError.message,
-          code: goalsError.code,
-        });
-        setError('No se pudieron guardar tus metas, intenta de nuevo.');
+      if (!result.success) {
+        setError(result.message);
         return;
       }
 
