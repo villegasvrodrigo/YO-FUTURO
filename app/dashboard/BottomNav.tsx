@@ -2,21 +2,88 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const COMING_SOON_LABEL: Record<'chat' | 'progreso', string> = {
   chat: 'Chat',
   progreso: 'Progreso',
 };
 
-const tabClass =
-  'flex flex-1 flex-col items-center gap-1 py-2.5 font-mono text-[10px] uppercase tracking-wide transition-colors';
+const iconProps = {
+  width: 22,
+  height: 22,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round' as const,
+  strokeLinejoin: 'round' as const,
+};
+
+function HomeIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M3 11.5 12 4l9 7.5" />
+      <path d="M5.5 10v9a1 1 0 0 0 1 1H9.5v-5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v5h3a1 1 0 0 0 1-1v-9" />
+    </svg>
+  );
+}
+
+function ChatIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M4 5h16v11H8l-4 4V5Z" />
+    </svg>
+  );
+}
+
+function ChartIcon() {
+  return (
+    <svg {...iconProps}>
+      <path d="M4 20V10" />
+      <path d="M11 20V4" />
+      <path d="M18 20v-7" />
+    </svg>
+  );
+}
+
+function UserIcon() {
+  return (
+    <svg {...iconProps}>
+      <circle cx="12" cy="8" r="3.2" />
+      <path d="M5 20c1-3.5 4-5.5 7-5.5s6 2 7 5.5" />
+    </svg>
+  );
+}
+
+const itemClass =
+  'flex flex-col items-center gap-1 rounded-full px-4 py-2 font-mono text-[10px] uppercase tracking-wide transition-colors';
+
+function NavLink({ href, label, active, children }: { href: string; label: string; active: boolean; children: React.ReactNode }) {
+  return (
+    <Link href={href} className={`${itemClass} ${active ? 'bg-rule text-parchment' : 'text-parchment/70 hover:text-parchment'}`}>
+      {children}
+      {label}
+    </Link>
+  );
+}
+
+function NavButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button type="button" onClick={onClick} className={`${itemClass} cursor-not-allowed text-mist/40`}>
+      {children}
+      {label}
+    </button>
+  );
+}
 
 /**
- * Barra de navegación inferior fija del dashboard. Chat y Progreso son
+ * Barra de navegación inferior flotante del dashboard. Chat y Progreso son
  * pestañas atenuadas sin funcionalidad todavía — solo muestran un aviso de
  * "Próximamente" al tocarlas.
  */
 export function BottomNav() {
+  const pathname = usePathname();
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -32,7 +99,7 @@ export function BottomNav() {
   return (
     <>
       {notice && (
-        <div className="fixed inset-x-0 bottom-[4.5rem] z-40 flex justify-center px-4">
+        <div className="fixed inset-x-0 bottom-24 z-40 flex justify-center px-4">
           <p
             role="status"
             className="rounded-lg border border-brass/30 bg-dusk-2 px-3.5 py-2 text-xs text-brass shadow-lg"
@@ -41,28 +108,20 @@ export function BottomNav() {
           </p>
         </div>
       )}
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-rule bg-ink/95 backdrop-blur">
-        <div className="mx-auto flex max-w-xl items-stretch justify-around">
-          <Link href="/dashboard" className={`${tabClass} text-parchment hover:text-brass`}>
-            Inicio
-          </Link>
-          <button
-            type="button"
-            onClick={() => showComingSoon('chat')}
-            className={`${tabClass} cursor-not-allowed text-mist/40`}
-          >
-            Chat
-          </button>
-          <button
-            type="button"
-            onClick={() => showComingSoon('progreso')}
-            className={`${tabClass} cursor-not-allowed text-mist/40`}
-          >
-            Progreso
-          </button>
-          <Link href="/perfil" className={`${tabClass} text-parchment hover:text-brass`}>
-            Perfil
-          </Link>
+      <nav className="fixed inset-x-0 bottom-5 z-30 flex justify-center px-4">
+        <div className="flex items-center gap-1 rounded-full border border-rule bg-dusk-2/95 px-2 py-2 shadow-xl backdrop-blur">
+          <NavLink href="/dashboard" label="Inicio" active={pathname === '/dashboard'}>
+            <HomeIcon />
+          </NavLink>
+          <NavButton label="Chat" onClick={() => showComingSoon('chat')}>
+            <ChatIcon />
+          </NavButton>
+          <NavButton label="Progreso" onClick={() => showComingSoon('progreso')}>
+            <ChartIcon />
+          </NavButton>
+          <NavLink href="/perfil" label="Perfil" active={pathname === '/perfil'}>
+            <UserIcon />
+          </NavLink>
         </div>
       </nav>
     </>

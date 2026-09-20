@@ -25,10 +25,15 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <main className="flex flex-1 justify-center px-6 pb-28 pt-16">
+      <main className="flex flex-1 justify-center px-6 pb-40 pt-16">
         <div className="w-full max-w-xl">
-          <div className="mb-8 flex items-center justify-between gap-4">
-            <h1 className="font-serif text-2xl text-parchment">{name ? `Hola, ${name}` : 'Hola'}</h1>
+          <div className="mb-10 flex items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="font-serif text-2xl leading-none text-parchment sm:text-3xl">Hola,</p>
+              <p className="mt-1 truncate font-serif text-4xl font-medium leading-tight text-white sm:text-5xl">
+                {name || 'de nuevo'}
+              </p>
+            </div>
             {/* Estático en 0% por ahora — se conectará al sistema de tareas
                 diarias cuando exista, para reflejar cuánto llevas del día. */}
             <CompletionRing percent={0} />
@@ -64,14 +69,14 @@ export default async function DashboardPage() {
           )}
 
           <section className="mt-10">
-            <h2 className="mb-3 font-serif text-xl text-parchment">Tus tareas de hoy</h2>
+            <h2 className="mb-3 font-serif text-2xl text-parchment">Tus tareas de hoy</h2>
             <div className="rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
               <p className="text-sm text-mist">Pronto verás aquí tus tareas del día.</p>
             </div>
           </section>
 
           <section className="mt-8">
-            <h2 className="mb-3 font-serif text-xl text-parchment">Daily insight</h2>
+            <h2 className="mb-3 font-serif text-2xl text-parchment">Daily insight</h2>
             <div className="rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
               <p className="text-sm text-mist">Pronto verás aquí tu daily insight.</p>
             </div>
@@ -93,31 +98,38 @@ export default async function DashboardPage() {
 }
 
 function CompletionRing({ percent }: { percent: number }) {
-  const radius = 18;
+  const size = 120;
+  const strokeWidth = 8;
+  const radius = (size - strokeWidth) / 2;
+  const center = size / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (percent / 100) * circumference;
 
   return (
     <div
-      className="relative flex h-11 w-11 shrink-0 items-center justify-center"
+      className="relative flex shrink-0 items-center justify-center"
+      style={{ width: size, height: size }}
       role="img"
       aria-label={`${percent}% del día completado`}
     >
-      <svg width="44" height="44" viewBox="0 0 44 44" className="-rotate-90">
-        <circle cx="22" cy="22" r={radius} fill="none" strokeWidth="4" className="stroke-rule" />
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
+        <circle cx={center} cy={center} r={radius} fill="none" strokeWidth={strokeWidth} className="stroke-brass/20" />
         <circle
-          cx="22"
-          cy="22"
+          cx={center}
+          cy={center}
           r={radius}
           fill="none"
-          strokeWidth="4"
+          strokeWidth={strokeWidth}
           strokeLinecap="round"
           className="stroke-brass"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
         />
       </svg>
-      <span className="absolute font-mono text-[10px] text-parchment">{percent}%</span>
+      <div className="absolute flex flex-col items-center">
+        <span className="font-mono text-3xl font-semibold text-brass">{percent}%</span>
+        <span className="mt-1 font-mono text-[10px] tracking-[0.25em] text-mist">HOY</span>
+      </div>
     </div>
   );
 }
