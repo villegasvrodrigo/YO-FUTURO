@@ -10,11 +10,19 @@ vi.mock('@/lib/messages/generate', () => ({
 vi.mock('@/lib/email/send', () => ({
   sendDailyEmail: vi.fn(),
 }));
+vi.mock('@/lib/tasks/daily', () => ({
+  prepareDailyTasks: vi.fn(),
+}));
+vi.mock('@/lib/tasks/save', () => ({
+  saveDailyTasks: vi.fn(),
+}));
 
 import { GET } from './route';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generateMessage } from '@/lib/messages/generate';
 import { sendDailyEmail } from '@/lib/email/send';
+import { prepareDailyTasks } from '@/lib/tasks/daily';
+import { saveDailyTasks } from '@/lib/tasks/save';
 
 type QueryResult = { data: unknown; error: unknown };
 
@@ -24,6 +32,7 @@ interface RecordedOp {
   kind: 'select' | 'insert' | 'update';
   payload?: Record<string, unknown>;
   filters: Array<[string, unknown]>;
+  orders?: Array<[string, unknown]>;
 }
 
 // Simple chainable fake query builder: every builder method returns
@@ -37,7 +46,8 @@ class FakeQuery implements PromiseLike<QueryResult> {
   select() {
     return this;
   }
-  order() {
+  order(column?: string, options?: unknown) {
+    (this.op.orders ??= []).push([column ?? '', options]);
     return this;
   }
   limit() {
@@ -183,6 +193,9 @@ describe('GET /api/cron/send-messages — batch processing', () => {
     // 10:00 UTC — matches delivery_hour_local: 10 in the UTC timezone below.
     vi.setSystemTime(new Date('2026-01-15T10:00:00Z'));
     process.env.CRON_SECRET = 'right-secret';
+    // No tasks by default: these tests are about the message flow, as before tasks existed.
+    vi.mocked(prepareDailyTasks).mockResolvedValue(null);
+    vi.mocked(saveDailyTasks).mockResolvedValue('saved');
   });
 
   afterEach(() => {
@@ -191,6 +204,8 @@ describe('GET /api/cron/send-messages — batch processing', () => {
     vi.mocked(createAdminClient).mockReset();
     vi.mocked(generateMessage).mockReset();
     vi.mocked(sendDailyEmail).mockReset();
+    vi.mocked(prepareDailyTasks).mockReset();
+    vi.mocked(saveDailyTasks).mockReset();
   });
 
   it('skips a user who already received a message earlier the same local day, without generating or sending', async () => {
@@ -222,6 +237,8 @@ describe('GET /api/cron/send-messages — batch processing', () => {
     // The dedup guard must short-circuit before any generation/send/insert.
     expect(generateMessage).not.toHaveBeenCalled();
     expect(sendDailyEmail).not.toHaveBeenCalled();
+    expect(prepareDailyTasks).not.toHaveBeenCalled();
+    expect(saveDailyTasks).not.toHaveBeenCalled();
     expect(fake.getUserById).not.toHaveBeenCalled();
     expect(fake.ops.filter((op) => op.table === 'messages')).toHaveLength(1);
   });
@@ -458,5 +475,196 @@ describe('GET /api/cron/send-messages — batch processing', () => {
     );
 
     consoleError.mockRestore();
+  });
+});
+
+describe('GET /api/cron/send-messages — daily tasks', () => {
+  const originalSecret = process.env.CRON_SECRET;
+  const TASKS = [
+    'Escribe en tu calendario la hora para revisar tu pipeline.',
+    'Elige algo que hayas estado posponiendo y avanza hoy una parte pequeña.',
+    'Anota tres logros concretos que ya conseguiste este año.',
+  ];
+  const PREPARED = { taskDate: '2026-01-15', tasks: TASKS };
+  const EMAIL_WITH_TASKS =
+    'Hoy diste un paso más.\n\n—\n\nTus tareas de hoy:\n\n' +
+    `1. ${TASKS[0]}\n2. ${TASKS[1]}\n3. ${TASKS[2]}`;
+
+  function setupDueUser() {
+    const profile = makeProfile();
+    const goal = { id: 'goal-1', user_id: 'user-1', description: 'correr 5k', status: 'active' };
+    const fake = createFakeSupabase({
+      profiles: [profile],
+      goals: { 'user-1': [goal] },
+      recentMessages: { 'user-1': [] },
+    });
+    vi.mocked(createAdminClient).mockReturnValue(fake.client as never);
+    vi.mocked(generateMessage).mockResolvedValue({
+      content: 'Hoy diste un paso más.',
+      modelUsed: 'claude-sonnet-5',
+    });
+    vi.mocked(sendDailyEmail).mockResolvedValue({
+      providerId: 'email-123',
+      status: 'sent',
+      error: null,
+    });
+    return { profile, goal, fake };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-15T10:00:00Z'));
+    process.env.CRON_SECRET = 'right-secret';
+    vi.mocked(saveDailyTasks).mockResolvedValue('saved');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env.CRON_SECRET = originalSecret;
+    vi.mocked(createAdminClient).mockReset();
+    vi.mocked(generateMessage).mockReset();
+    vi.mocked(sendDailyEmail).mockReset();
+    vi.mocked(prepareDailyTasks).mockReset();
+    vi.mocked(saveDailyTasks).mockReset();
+  });
+
+  it('with no tasks, sends exactly the message and saves nothing (the email is as it was before tasks)', async () => {
+    setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(null);
+
+    const response = await GET(cronRequest());
+
+    expect(await response.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
+    expect(sendDailyEmail).toHaveBeenCalledTimes(1);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', 'Hoy diste un paso más.');
+    expect(saveDailyTasks).not.toHaveBeenCalled();
+  });
+
+  it('with tasks, adds the separator, the title and the numbered tasks to the email', async () => {
+    setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED);
+
+    const response = await GET(cronRequest());
+
+    expect(await response.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITH_TASKS);
+  });
+
+  it('stores only the message in `messages`, never the tasks', async () => {
+    const { fake } = setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED);
+
+    await GET(cronRequest());
+
+    const insert = fake.ops.find((op) => op.table === 'messages' && op.kind === 'insert');
+    expect(insert?.payload).toEqual({
+      user_id: 'user-1',
+      content: 'Hoy diste un paso más.',
+      model_used: 'claude-sonnet-5',
+      send_status: 'pending',
+    });
+  });
+
+  it('prepares the tasks with the profile, the active goals, the message and the run time', async () => {
+    const { profile, goal, fake } = setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED);
+
+    await GET(cronRequest());
+
+    expect(prepareDailyTasks).toHaveBeenCalledTimes(1);
+    expect(prepareDailyTasks).toHaveBeenCalledWith(
+      fake.client,
+      profile,
+      [goal],
+      'Hoy diste un paso más.',
+      new Date('2026-01-15T10:00:00Z')
+    );
+  });
+
+  it('saves the tasks last: after sending, and after the message status and email log are written', async () => {
+    const { fake } = setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED);
+    let opsWrittenBeforeSave: string[] = [];
+    vi.mocked(saveDailyTasks).mockImplementation(async () => {
+      opsWrittenBeforeSave = fake.ops.filter((op) => op.kind !== 'select').map((op) => `${op.table}:${op.kind}`);
+      return 'saved';
+    });
+
+    await GET(cronRequest());
+
+    expect(saveDailyTasks).toHaveBeenCalledTimes(1);
+    expect(saveDailyTasks).toHaveBeenCalledWith('user-1', '2026-01-15', TASKS, fake.client);
+    expect(vi.mocked(saveDailyTasks).mock.invocationCallOrder[0]).toBeGreaterThan(
+      vi.mocked(sendDailyEmail).mock.invocationCallOrder[0]
+    );
+    expect(opsWrittenBeforeSave).toEqual(['messages:insert', 'messages:update', 'email_log:insert']);
+  });
+
+  it('prepares the tasks before sending, not after', async () => {
+    setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED);
+
+    await GET(cronRequest());
+
+    expect(vi.mocked(prepareDailyTasks).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(sendDailyEmail).mock.invocationCallOrder[0]
+    );
+  });
+
+  it('a failed task save does not affect the email, the message status or the result', async () => {
+    const { fake } = setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED);
+    vi.mocked(saveDailyTasks).mockResolvedValue('failed');
+
+    const response = await GET(cronRequest());
+
+    expect(await response.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITH_TASKS);
+    const update = fake.ops.find((op) => op.table === 'messages' && op.kind === 'update');
+    expect(update?.payload).toEqual({ send_status: 'sent', sent_at: '2026-01-15T10:00:00.000Z' });
+    expect(fake.ops.some((op) => op.table === 'email_log')).toBe(true);
+  });
+
+  it('still saves the tasks when the email fails to send (they show up in the dashboard anyway)', async () => {
+    setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED);
+    vi.mocked(sendDailyEmail).mockResolvedValue({
+      providerId: null,
+      status: 'failed',
+      error: 'network timeout',
+    });
+
+    await GET(cronRequest());
+
+    expect(saveDailyTasks).toHaveBeenCalledTimes(1);
+  });
+
+  it('makes no task work at all when the user has no email', async () => {
+    const { fake } = setupDueUser();
+    fake.getUserById.mockResolvedValueOnce({ data: { user: null } } as never);
+    vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const response = await GET(cronRequest());
+
+    expect(await response.json()).toEqual({ processed: 1, succeeded: 0, failed: 1 });
+    expect(prepareDailyTasks).not.toHaveBeenCalled();
+    expect(sendDailyEmail).not.toHaveBeenCalled();
+    expect(saveDailyTasks).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('reads the active goals oldest first, so the daily goal rotation is stable', async () => {
+    const { fake } = setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(null);
+
+    await GET(cronRequest());
+
+    const goalsRead = fake.ops.find((op) => op.table === 'goals');
+    expect(goalsRead?.filters).toEqual([
+      ['user_id', 'user-1'],
+      ['status', 'active'],
+    ]);
+    expect(goalsRead?.orders).toEqual([['created_at', { ascending: true }]]);
   });
 });

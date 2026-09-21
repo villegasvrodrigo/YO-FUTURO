@@ -15,7 +15,7 @@ jobs:
       - name: Llamar a /api/cron/send-messages
         run: |
           status=$(curl -sS -o /tmp/response.txt -w '%{http_code}' \
-            --max-time 30 \
+            --max-time 90 \
             -X GET "${CRON_TARGET_URL}/api/cron/send-messages" \
             -H "Authorization: Bearer ${CRON_SECRET}")
           echo "HTTP status: $status"

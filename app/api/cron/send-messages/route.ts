@@ -3,6 +3,9 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { isSameLocalDay, summarizeDueProfiles } from '@/lib/messages/delivery';
 import { generateMessage } from '@/lib/messages/generate';
 import { sendDailyEmail } from '@/lib/email/send';
+import { buildEmailText } from '@/lib/email/body';
+import { prepareDailyTasks } from '@/lib/tasks/daily';
+import { saveDailyTasks } from '@/lib/tasks/save';
 import type { Profile, Goal, MessageRecord } from '@/lib/types';
 
 // El batch por hora puede tardar: procesamos usuarios en tandas y cada uno
@@ -108,7 +111,9 @@ async function processUser(
     .from('goals')
     .select('*')
     .eq('user_id', profile.id)
-    .eq('status', 'active');
+    .eq('status', 'active')
+    // Orden estable: la meta del día rota según la fecha y necesita el mismo orden siempre.
+    .order('created_at', { ascending: true });
 
   const { data: recentMessages } = await supabase
     .from('messages')
@@ -154,7 +159,11 @@ async function processUser(
     throw new Error('Usuario sin email registrado');
   }
 
-  const emailResult = await sendDailyEmail(email, content);
+  // Tareas del día (opcionales): nunca lanza un error y devuelve null si algo falla o
+  // tarda más de 20 s. Con null, el correo sale exactamente como antes de las tareas.
+  const dailyTasks = await prepareDailyTasks(supabase, profile, (goals as Goal[]) ?? [], content, now);
+
+  const emailResult = await sendDailyEmail(email, buildEmailText(content, dailyTasks?.tasks ?? null));
 
   await supabase
     .from('messages')
@@ -170,6 +179,12 @@ async function processUser(
     status: emailResult.status,
     error: emailResult.error,
   });
+
+  // Tareas del día: se guardan al final, ya con el mensaje y su log cerrados. Nunca lanza
+  // un error: si falla, solo queda registrado.
+  if (dailyTasks) {
+    await saveDailyTasks(profile.id, dailyTasks.taskDate, dailyTasks.tasks, supabase);
+  }
 
   console.log(`[cron]   enviado: perfil ${profile.id} (mensaje ${inserted.id}, email status=${emailResult.status})`);
 }
