@@ -57,7 +57,7 @@ function UserIcon() {
 }
 
 const itemClass =
-  'flex flex-col items-center gap-1 rounded-full px-4 py-2 font-mono text-[10px] uppercase tracking-wide transition-colors';
+  'flex flex-col items-center gap-1 rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide transition-colors';
 
 function NavLink({ href, label, active, children }: { href: string; label: string; active: boolean; children: React.ReactNode }) {
   return (
@@ -70,7 +70,7 @@ function NavLink({ href, label, active, children }: { href: string; label: strin
 
 function NavButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className={`${itemClass} cursor-not-allowed text-mist`}>
+    <button type="button" onClick={onClick} className={`${itemClass} cursor-not-allowed text-mist/40`}>
       {children}
       {label}
     </button>
@@ -109,7 +109,7 @@ export function BottomNav() {
         </div>
       )}
       <nav className="fixed inset-x-0 bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4">
-        <div className="flex items-center gap-1 rounded-full border border-[#454b5f] bg-[#303545] px-2 py-2 shadow-xl">
+        <div className="flex items-center gap-1 rounded-full border border-[#454b5f] bg-[#303545] px-1.5 py-1.5 shadow-xl">
           <NavLink href="/dashboard" label="Inicio" active={pathname === '/dashboard'}>
             <HomeIcon />
           </NavLink>
