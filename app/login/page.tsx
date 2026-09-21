@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
+import { translateLoginError } from '@/lib/auth/loginErrors';
 
 export default function LoginPage() {
   return (
@@ -20,19 +21,27 @@ function LoginForm() {
   // Prellenado con el error que trae el redirect de /auth/confirm cuando un
   // enlace de confirmación es inválido o ya expiró.
   const [error, setError] = useState<string | null>(searchParams.get('error'));
+  const [sending, setSending] = useState(false);
   const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (sending) return;
     setError(null);
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) {
-      setError(error.message);
-      return;
+    setSending(true);
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        setError(translateLoginError(error.message));
+        return;
+      }
+      router.push('/dashboard');
+      router.refresh();
+    } finally {
+      setSending(false);
     }
-    router.push('/dashboard');
-    router.refresh();
   }
 
   return (
@@ -51,6 +60,7 @@ function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="tú@ejemplo.com"
               required
+              disabled={sending}
               className="w-full rounded-lg border border-rule bg-dusk-2 px-3.5 py-2.5 text-[15px] text-parchment placeholder:text-mist focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass"
             />
           </div>
@@ -65,6 +75,7 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
+              disabled={sending}
               className="w-full rounded-lg border border-rule bg-dusk-2 px-3.5 py-2.5 text-[15px] text-parchment placeholder:text-mist focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass"
             />
           </div>
@@ -75,9 +86,10 @@ function LoginForm() {
           )}
           <button
             type="submit"
-            className="mt-2 w-full rounded-lg bg-brass px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90"
+            disabled={sending}
+            className="mt-2 w-full rounded-lg bg-brass px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90 disabled:opacity-50"
           >
-            Entrar
+            {sending ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
         <Link
