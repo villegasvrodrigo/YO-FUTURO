@@ -51,13 +51,19 @@ export function summarizeDueProfiles(
   return { nowUtcIso: nowUtc.toISOString(), totalProfiles: profiles.length, due, excluded };
 }
 
+/**
+ * The calendar date of `date` in `timezone`, as "YYYY-MM-DD" (the en-CA locale formats
+ * dates that way). Throws (e.g. RangeError) if `timezone` isn't a valid IANA zone name.
+ */
+export function getLocalDateString(date: Date, timezone: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
 export function isSameLocalDay(a: Date, b: Date, timezone: string): boolean {
-  const format = (d: Date) =>
-    new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-    }).format(d);
-  return format(a) === format(b);
+  return getLocalDateString(a, timezone) === getLocalDateString(b, timezone);
 }

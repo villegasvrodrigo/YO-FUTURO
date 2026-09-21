@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { isDueNow, isSameLocalDay, getLocalHour, summarizeDueProfiles } from './delivery';
+import {
+  isDueNow,
+  isSameLocalDay,
+  getLocalDateString,
+  getLocalHour,
+  summarizeDueProfiles,
+} from './delivery';
 
 describe('isDueNow', () => {
   it('returns true when the local hour matches the delivery hour', () => {
@@ -100,5 +106,36 @@ describe('summarizeDueProfiles', () => {
     const summary = summarizeDueProfiles([], now);
 
     expect(summary.nowUtcIso).toBe(now.toISOString());
+  });
+});
+
+describe('getLocalDateString', () => {
+  it('returns the local calendar date as YYYY-MM-DD', () => {
+    expect(getLocalDateString(new Date('2026-09-21T15:30:00Z'), 'UTC')).toBe('2026-09-21');
+  });
+
+  it('uses the date in the given time zone, not the UTC date (behind UTC)', () => {
+    // 2026-09-22T03:00Z is still the evening of Sep 21 in Mexico City (UTC-6).
+    expect(getLocalDateString(new Date('2026-09-22T03:00:00Z'), 'America/Mexico_City')).toBe('2026-09-21');
+  });
+
+  it('uses the date in the given time zone, not the UTC date (ahead of UTC)', () => {
+    // 2026-09-21T20:00Z is already Sep 22 in Tokyo (UTC+9).
+    expect(getLocalDateString(new Date('2026-09-21T20:00:00Z'), 'Asia/Tokyo')).toBe('2026-09-22');
+  });
+
+  it('pads single-digit months and days', () => {
+    expect(getLocalDateString(new Date('2026-03-05T12:00:00Z'), 'UTC')).toBe('2026-03-05');
+  });
+
+  it('throws on an invalid time zone', () => {
+    expect(() => getLocalDateString(new Date(), 'No/Existe')).toThrow(RangeError);
+  });
+
+  it('agrees with isSameLocalDay', () => {
+    const a = new Date('2026-09-22T03:00:00Z');
+    const b = new Date('2026-09-21T15:00:00Z');
+    const zone = 'America/Mexico_City';
+    expect(getLocalDateString(a, zone) === getLocalDateString(b, zone)).toBe(isSameLocalDay(a, b, zone));
   });
 });

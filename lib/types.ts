@@ -38,3 +38,14 @@ export interface MessageRecord {
   send_status: SendStatus;
   model_used: string;
 }
+
+export interface DailyTask {
+  id: string;
+  user_id: string;
+  task_date: string;
+  position: number;
+  description: string;
+  completed: boolean;
+  completed_at: string | null;
+  created_at: string;
+}

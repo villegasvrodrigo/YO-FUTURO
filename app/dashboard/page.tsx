@@ -1,6 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { getLocalDateString } from '@/lib/messages/delivery';
+import type { DailyTask } from '@/lib/types';
 import { BottomNav } from './BottomNav';
+import { CompletionRing } from './CompletionRing';
+import { TaskList, TaskListHint, TasksProvider } from './TaskList';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -9,7 +13,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name')
+    .select('name, timezone')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -23,115 +27,101 @@ export default async function DashboardPage() {
 
   const name = profile?.name?.trim();
 
+  // Today's tasks: the ones saved for the user's LOCAL date today. Any problem here (bad
+  // timezone, failed read) just means no tasks are shown; it never breaks the dashboard.
+  let tasks: DailyTask[] = [];
+  if (profile?.timezone) {
+    try {
+      const today = getLocalDateString(new Date(), profile.timezone);
+      const { data, error } = await supabase
+        .from('daily_tasks')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('task_date', today)
+        .order('position', { ascending: true });
+      if (error) {
+        console.error('[dashboard] no se pudieron leer las tareas de hoy:', error.message);
+      } else {
+        tasks = (data as DailyTask[]) ?? [];
+      }
+    } catch (err) {
+      console.error('[dashboard] no se pudo calcular la fecha local para las tareas:', err);
+    }
+  }
+
   return (
     <>
       <main className="flex flex-1 justify-center px-6 pb-40 pt-8">
-        <div className="w-full max-w-xl">
-          <div className="mb-10 flex items-center justify-between gap-4">
-            <div className="min-w-0 flex-1">
-              <p className="mb-0.5 font-mono text-[17px] uppercase tracking-[0.1em] text-mist sm:text-[21px]">
-                Hola,
-              </p>
-              <p className="truncate font-sans text-[27px] font-bold leading-none text-brass sm:text-[36px]">
-                {name || 'de nuevo'}
-              </p>
+        <TasksProvider initialTasks={tasks}>
+          <div className="w-full max-w-xl">
+            <div className="mb-10 flex items-center justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <p className="mb-0.5 font-mono text-[17px] uppercase tracking-[0.1em] text-mist sm:text-[21px]">
+                  Hola,
+                </p>
+                <p className="truncate font-sans text-[27px] font-bold leading-none text-brass sm:text-[36px]">
+                  {name || 'de nuevo'}
+                </p>
+              </div>
+              <CompletionRing />
             </div>
-            {/* Estático en 0% por ahora — se conectará al sistema de tareas
-                diarias cuando exista, para reflejar cuánto llevas del día. */}
-            <CompletionRing percent={0} />
-          </div>
 
-          <p className="mb-1 font-mono text-xs uppercase tracking-[0.1em] text-brass">
-            Tu mensaje de hoy
-          </p>
-          {latestMessage && (
-            <p className="mb-6 font-mono text-xs text-mist">
-              {new Date(latestMessage.generated_at).toLocaleDateString('es-MX', {
-                day: '2-digit',
-                month: 'short',
-              })}
+            <p className="mb-1 font-mono text-xs uppercase tracking-[0.1em] text-brass">
+              Tu mensaje de hoy
             </p>
-          )}
-
-          {latestMessage ? (
-            <div className="mt-6 rounded border-t-2 border-brass-dim bg-dusk-2 px-7 py-8">
-              <p className="whitespace-pre-line font-serif text-lg italic leading-relaxed text-parchment">
-                {latestMessage.content}
+            {latestMessage && (
+              <p className="mb-6 font-mono text-xs text-mist">
+                {new Date(latestMessage.generated_at).toLocaleDateString('es-MX', {
+                  day: '2-digit',
+                  month: 'short',
+                })}
               </p>
-              <span className="mt-5 block font-mono text-xs text-mist">
-                {latestMessage.model_used} · generado hoy
-              </span>
-            </div>
-          ) : (
-            <div className="mt-6 rounded border-t-2 border-rule bg-dusk-2 px-7 py-8">
-              <p className="font-serif text-lg italic leading-relaxed text-mist">
-                Tu yo futuro todavía no te ha escrito.
-              </p>
-            </div>
-          )}
+            )}
 
-          <section className="mt-10">
-            <h2 className="mb-3 font-serif text-2xl text-parchment">Tus tareas de hoy</h2>
-            <div className="rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
-              <p className="text-sm text-mist">Pronto verás aquí tus tareas del día.</p>
-            </div>
-          </section>
+            {latestMessage ? (
+              <div className="mt-6 rounded border-t-2 border-brass-dim bg-dusk-2 px-7 py-8">
+                <p className="whitespace-pre-line font-serif text-lg italic leading-relaxed text-parchment">
+                  {latestMessage.content}
+                </p>
+                <span className="mt-5 block font-mono text-xs text-mist">
+                  {latestMessage.model_used} · generado hoy
+                </span>
+              </div>
+            ) : (
+              <div className="mt-6 rounded border-t-2 border-rule bg-dusk-2 px-7 py-8">
+                <p className="font-serif text-lg italic leading-relaxed text-mist">
+                  Tu yo futuro todavía no te ha escrito.
+                </p>
+              </div>
+            )}
 
-          <section className="mt-8">
-            <h2 className="mb-3 font-serif text-2xl text-parchment">Daily insight</h2>
-            <div className="rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
-              <p className="text-sm text-mist">Pronto verás aquí tu daily insight.</p>
-            </div>
-          </section>
+            <section className="mt-10">
+              <h2 className="font-serif text-2xl text-parchment">Tus tareas de hoy</h2>
+              <TaskListHint />
+              <div className="mt-3 rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
+                <TaskList />
+              </div>
+            </section>
 
-          <nav className="mt-8 flex gap-5 font-mono text-xs">
-            <a href="/historial" className="text-mist transition-colors hover:text-brass">
-              Ver historial
-            </a>
-            <a href="/perfil" className="text-mist transition-colors hover:text-brass">
-              Editar perfil
-            </a>
-          </nav>
-        </div>
+            <section className="mt-8">
+              <h2 className="mb-3 font-serif text-2xl text-parchment">Daily insight</h2>
+              <div className="rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
+                <p className="text-sm text-mist">Pronto verás aquí tu daily insight.</p>
+              </div>
+            </section>
+
+            <nav className="mt-8 flex gap-5 font-mono text-xs">
+              <a href="/historial" className="text-mist transition-colors hover:text-brass">
+                Ver historial
+              </a>
+              <a href="/perfil" className="text-mist transition-colors hover:text-brass">
+                Editar perfil
+              </a>
+            </nav>
+          </div>
+        </TasksProvider>
       </main>
       <BottomNav />
     </>
-  );
-}
-
-function CompletionRing({ percent }: { percent: number }) {
-  const size = 120;
-  const strokeWidth = 8;
-  const radius = (size - strokeWidth) / 2;
-  const center = size / 2;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (percent / 100) * circumference;
-
-  return (
-    <div
-      className="relative flex shrink-0 items-center justify-center"
-      style={{ width: size, height: size }}
-      role="img"
-      aria-label={`${percent}% del día completado`}
-    >
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="-rotate-90">
-        <circle cx={center} cy={center} r={radius} fill="none" strokeWidth={strokeWidth} className="stroke-brass/20" />
-        <circle
-          cx={center}
-          cy={center}
-          r={radius}
-          fill="none"
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          className="stroke-brass"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-        />
-      </svg>
-      <div className="absolute flex flex-col items-center">
-        <span className="font-mono text-3xl font-semibold text-brass">{percent}%</span>
-        <span className="mt-1 font-mono text-[10px] tracking-[0.25em] text-mist">HOY</span>
-      </div>
-    </div>
   );
 }
