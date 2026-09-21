@@ -61,7 +61,7 @@ const itemClass =
 
 function NavLink({ href, label, active, children }: { href: string; label: string; active: boolean; children: React.ReactNode }) {
   return (
-    <Link href={href} className={`${itemClass} ${active ? 'bg-rule text-parchment' : 'text-parchment/70 hover:text-parchment'}`}>
+    <Link href={href} className={`${itemClass} ${active ? 'text-brass' : 'text-mist hover:text-parchment'}`}>
       {children}
       {label}
     </Link>
@@ -70,7 +70,7 @@ function NavLink({ href, label, active, children }: { href: string; label: strin
 
 function NavButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button type="button" onClick={onClick} className={`${itemClass} cursor-not-allowed text-mist/40`}>
+    <button type="button" onClick={onClick} className={`${itemClass} cursor-not-allowed text-mist`}>
       {children}
       {label}
     </button>
@@ -108,8 +108,8 @@ export function BottomNav() {
           </p>
         </div>
       )}
-      <nav className="fixed inset-x-0 bottom-5 z-30 flex justify-center px-4">
-        <div className="flex items-center gap-1 rounded-full border border-rule bg-dusk-2 px-2 py-2 shadow-xl">
+      <nav className="fixed inset-x-0 bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4">
+        <div className="flex items-center gap-1 rounded-full border border-[#454b5f] bg-[#303545] px-2 py-2 shadow-xl">
           <NavLink href="/dashboard" label="Inicio" active={pathname === '/dashboard'}>
             <HomeIcon />
           </NavLink>
