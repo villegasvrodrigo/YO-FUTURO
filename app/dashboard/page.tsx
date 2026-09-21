@@ -29,8 +29,8 @@ export default async function DashboardPage() {
         <div className="w-full max-w-xl">
           <div className="mb-10 flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <p className="font-serif text-2xl leading-none text-parchment sm:text-3xl">Hola,</p>
-              <p className="mt-1 truncate font-serif text-4xl font-medium leading-tight text-white sm:text-5xl">
+              <p className="font-sans text-2xl leading-none text-parchment sm:text-3xl">Hola,</p>
+              <p className="mt-1 truncate font-sans text-4xl font-bold leading-tight text-white sm:text-5xl">
                 {name || 'de nuevo'}
               </p>
             </div>

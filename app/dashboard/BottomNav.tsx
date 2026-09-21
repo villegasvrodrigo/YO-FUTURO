@@ -109,7 +109,7 @@ export function BottomNav() {
         </div>
       )}
       <nav className="fixed inset-x-0 bottom-5 z-30 flex justify-center px-4">
-        <div className="flex items-center gap-1 rounded-full border border-rule bg-dusk-2/95 px-2 py-2 shadow-xl backdrop-blur">
+        <div className="flex items-center gap-1 rounded-full border border-rule bg-dusk-2 px-2 py-2 shadow-xl">
           <NavLink href="/dashboard" label="Inicio" active={pathname === '/dashboard'}>
             <HomeIcon />
           </NavLink>
