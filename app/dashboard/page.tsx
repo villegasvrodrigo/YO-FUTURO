@@ -25,12 +25,12 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <main className="flex flex-1 justify-center px-6 pb-40 pt-16">
+      <main className="flex flex-1 justify-center px-6 pb-40 pt-8">
         <div className="w-full max-w-xl">
           <div className="mb-10 flex items-center justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <p className="font-sans text-2xl leading-none text-parchment sm:text-3xl">Hola,</p>
-              <p className="mt-1 truncate font-sans text-4xl font-bold leading-tight text-white sm:text-5xl">
+              <p className="font-sans text-2xl leading-none text-mist sm:text-3xl">Hola,</p>
+              <p className="truncate font-sans text-[27px] font-bold leading-none text-brass sm:text-[36px]">
                 {name || 'de nuevo'}
               </p>
             </div>
