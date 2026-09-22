@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
 import { validateProfileStep, validateDeliveryHour } from '@/lib/onboarding/validate';
+import { HOUR_OPTIONS, hourLabel } from '@/lib/perfil/hourLabel';
+import { SAVE_PROFILE_FAILED, updateProfile } from '@/lib/perfil/updateProfile';
 import type { Profile, Goal, GoalStatus, FocusArea, Tone } from '@/lib/types';
 
 const fieldClass =
@@ -44,6 +46,11 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
   const [goalList, setGoalList] = useState(goals);
   const [newGoal, setNewGoal] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  // Result of "Guardar cambios", shown right under that button (the message box at the
+  // top of the page is out of view when the button is tapped).
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -54,15 +61,21 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
   const router = useRouter();
 
   async function saveProfile() {
-    const profileErr = validateProfileStep({ name, currentAge, futureSelfAge, focusArea, tone, values });
-    if (profileErr) return setMessage(profileErr);
-    const hourErr = validateDeliveryHour(deliveryHour);
-    if (hourErr) return setMessage(hourErr);
+    if (savingProfile) return;
+    setSaveError(null);
+    setSaveNotice(null);
 
-    const supabase = createClient();
-    const { error } = await supabase
-      .from('profiles')
-      .update({
+    const validationError =
+      validateProfileStep({ name, currentAge, futureSelfAge, focusArea, tone, values }) ??
+      validateDeliveryHour(deliveryHour);
+    if (validationError) {
+      setSaveError(validationError);
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      const saved = await updateProfile(createClient(), profile.id, {
         name,
         current_age: currentAge,
         future_self_age: futureSelfAge,
@@ -70,9 +83,17 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
         tone,
         values,
         delivery_hour_local: deliveryHour,
-      })
-      .eq('id', profile.id);
-    setMessage(error ? error.message : 'Perfil actualizado');
+      });
+      if (saved) {
+        // "8:00 a. m." already ends with a period; "12:00 a. m. (medianoche)" doesn't.
+        const hour = hourLabel(deliveryHour);
+        setSaveNotice(`Cambios guardados. Tu mensaje llegará a las ${hour}${hour.endsWith('.') ? '' : '.'}`);
+      } else {
+        setSaveError(SAVE_PROFILE_FAILED);
+      }
+    } finally {
+      setSavingProfile(false);
+    }
   }
 
   async function changePassword() {
@@ -230,28 +251,48 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
             />
           </div>
           <div>
-            <label htmlFor="deliveryHour" className={labelClass}>Hora de entrega (0–23)</label>
-            <input
+            <label htmlFor="deliveryHour" className={labelClass}>Hora de entrega</label>
+            {/* A list instead of a number box: it can never be left empty (an empty
+                number box used to be saved as 0, midnight). */}
+            <select
               id="deliveryHour"
-              type="number"
-              min={0}
-              max={23}
               value={deliveryHour}
               onChange={(e) => setDeliveryHour(Number(e.target.value))}
               className={fieldClass}
-            />
+            >
+              {HOUR_OPTIONS.map((option) => (
+                <option key={option.value} className="bg-dusk-2 text-parchment" value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
             <p className="mt-1.5 font-mono text-xs text-mist">
               Zona horaria: <span className="text-brass">{profile.timezone}</span> — tu mensaje
               llega a esta hora según esa zona horaria. Si te mudas o viajas por un tiempo largo,
               ajusta la hora de entrega para que te siga llegando cuando quieres.
             </p>
+            <p className="mt-1.5 font-mono text-xs text-mist">
+              Si cambias la hora, aplica desde tu próximo mensaje. Si ya recibiste el de hoy, o si
+              la nueva hora ya pasó hoy, el primero con la nueva hora te llega mañana.
+            </p>
           </div>
+          {saveError && (
+            <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
+              {saveError}
+            </p>
+          )}
+          {saveNotice && (
+            <p role="status" className="rounded-lg border border-sage/30 bg-sage/10 px-3.5 py-2.5 text-sm text-sage">
+              {saveNotice}
+            </p>
+          )}
           <button
             type="button"
             onClick={saveProfile}
-            className="mt-1 self-start rounded-lg bg-brass px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90"
+            disabled={savingProfile}
+            className="mt-1 self-start rounded-lg bg-brass px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90 disabled:opacity-50"
           >
-            Guardar cambios
+            {savingProfile ? 'Guardando…' : 'Guardar cambios'}
           </button>
         </section>
 
