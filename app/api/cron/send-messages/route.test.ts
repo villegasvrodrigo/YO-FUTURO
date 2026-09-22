@@ -23,8 +23,12 @@ import { generateMessage } from '@/lib/messages/generate';
 import { sendDailyEmail } from '@/lib/email/send';
 import { prepareDailyTasks } from '@/lib/tasks/daily';
 import { saveDailyTasks } from '@/lib/tasks/save';
+import { dashboardLine } from '@/lib/email/body';
 
 type QueryResult = { data: unknown; error: unknown };
+
+// Every email ends with the dashboard line, with or without tasks.
+const EMAIL_WITHOUT_TASKS = `Hoy diste un paso más.\n\n${dashboardLine()}`;
 
 /** One recorded Supabase call, so tests can assert what was written. */
 interface RecordedOp {
@@ -271,7 +275,7 @@ describe('GET /api/cron/send-messages — batch processing', () => {
 
     expect(generateMessage).toHaveBeenCalledTimes(1);
     expect(generateMessage).toHaveBeenCalledWith(profile, [goal], []);
-    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', 'Hoy diste un paso más.');
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITHOUT_TASKS);
 
     const messageInsert = fake.ops.find(
       (op) => op.table === 'messages' && op.kind === 'insert'
@@ -463,7 +467,7 @@ describe('GET /api/cron/send-messages — batch processing', () => {
     // The healthy user completed end to end.
     expect(sendDailyEmail).toHaveBeenCalledWith(
       'user-ok@example.com',
-      'Mensaje para el usuario sano.'
+      `Mensaje para el usuario sano.\n\n${dashboardLine()}`
     );
     const inserts = fake.ops.filter((op) => op.table === 'messages' && op.kind === 'insert');
     expect(inserts).toHaveLength(1);
@@ -488,7 +492,7 @@ describe('GET /api/cron/send-messages — daily tasks', () => {
   const PREPARED = { taskDate: '2026-01-15', tasks: TASKS };
   const EMAIL_WITH_TASKS =
     'Hoy diste un paso más.\n\n—\n\nTus tareas de hoy:\n\n' +
-    `1. ${TASKS[0]}\n2. ${TASKS[1]}\n3. ${TASKS[2]}`;
+    `1. ${TASKS[0]}\n2. ${TASKS[1]}\n3. ${TASKS[2]}\n\n${dashboardLine()}`;
 
   function setupDueUser() {
     const profile = makeProfile();
@@ -536,11 +540,11 @@ describe('GET /api/cron/send-messages — daily tasks', () => {
 
     expect(await response.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
     expect(sendDailyEmail).toHaveBeenCalledTimes(1);
-    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', 'Hoy diste un paso más.');
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITHOUT_TASKS);
     expect(saveDailyTasks).not.toHaveBeenCalled();
   });
 
-  it('with tasks, adds the separator, the title and the numbered tasks to the email', async () => {
+  it('with tasks, adds the separator, the title, the numbered tasks and the dashboard line to the email', async () => {
     setupDueUser();
     vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED);
 

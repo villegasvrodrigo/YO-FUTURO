@@ -24,6 +24,7 @@ Copia `.env.example` a `.env.local` y rellena las seis variables:
 | `RESEND_API_KEY` | Autentica el envío de emails vía Resend. |
 | `RESEND_FROM_ADDRESS` | Opcional. Remitente de los emails (ej. `Yo Futuro <hola@tudominio.com>`). Si no se define, usa `Yo Futuro <hola@yofuturo.app>` por defecto. Útil para probar con el remitente de pruebas de Resend (`onboarding@resend.dev`) antes de verificar un dominio propio. |
 | `CRON_SECRET` | Secreto que valida el header `Authorization` de la ruta de cron, para que no sea invocable públicamente. |
+| `SITE_URL` | Opcional. Dirección pública del sitio, sin `/` final (ej. `https://yofuturo.rodrigovillegasvilla.com`). El correo diario termina con `Marca tus tareas en <SITE_URL>/dashboard`. Si no se define o no es una dirección `http(s)` válida, usa `https://yofuturo.rodrigovillegasvilla.com`. |
 
 ## Base de datos
 
