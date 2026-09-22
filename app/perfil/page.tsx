@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { BottomNav } from '@/app/_components/BottomNav';
 import { PerfilForm } from './PerfilForm';
 
 export default async function PerfilPage() {
@@ -12,5 +13,10 @@ export default async function PerfilPage() {
 
   if (!profile) redirect('/onboarding');
 
-  return <PerfilForm profile={profile} goals={goals ?? []} />;
+  return (
+    <>
+      <PerfilForm profile={profile} goals={goals ?? []} />
+      <BottomNav />
+    </>
+  );
 }

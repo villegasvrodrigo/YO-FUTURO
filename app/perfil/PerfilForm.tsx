@@ -146,7 +146,7 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
   }
 
   return (
-    <main className="flex flex-1 justify-center px-6 py-16">
+    <main className="flex flex-1 justify-center px-6 pb-40 pt-16">
       <div className="w-full max-w-xl">
         <h1 className="mb-6 font-serif text-3xl text-parchment">Tu perfil</h1>
         {message && (

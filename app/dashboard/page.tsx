@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getLocalDateString } from '@/lib/messages/delivery';
 import type { DailyTask } from '@/lib/types';
-import { BottomNav } from './BottomNav';
+import { BottomNav } from '@/app/_components/BottomNav';
 import { CompletionRing } from './CompletionRing';
 import { TaskList, TaskListHint, TasksProvider } from './TaskList';
 

@@ -4,9 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
-const COMING_SOON_LABEL: Record<'chat' | 'progreso', string> = {
+const COMING_SOON_LABEL: Record<'chat', string> = {
   chat: 'Chat',
-  progreso: 'Progreso',
 };
 
 const iconProps = {
@@ -78,9 +77,10 @@ function NavButton({ label, onClick, children }: { label: string; onClick: () =>
 }
 
 /**
- * Barra de navegación inferior flotante del dashboard. Chat y Progreso son
- * pestañas atenuadas sin funcionalidad todavía — solo muestran un aviso de
- * "Próximamente" al tocarlas.
+ * Barra de navegación inferior flotante, compartida por el dashboard, Progreso y Perfil.
+ * Cada pantalla que la usa deja espacio abajo (pb-40) para que la barra no tape su
+ * contenido. Chat es una pestaña atenuada sin funcionalidad todavía — solo muestra un
+ * aviso de "Próximamente" al tocarla.
  */
 export function BottomNav() {
   const pathname = usePathname();
@@ -116,9 +116,9 @@ export function BottomNav() {
           <NavButton label="Chat" onClick={() => showComingSoon('chat')}>
             <ChatIcon />
           </NavButton>
-          <NavButton label="Progreso" onClick={() => showComingSoon('progreso')}>
+          <NavLink href="/progreso" label="Progreso" active={pathname === '/progreso'}>
             <ChartIcon />
-          </NavButton>
+          </NavLink>
           <NavLink href="/perfil" label="Perfil" active={pathname === '/perfil'}>
             <UserIcon />
           </NavLink>
