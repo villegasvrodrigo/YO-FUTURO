@@ -117,6 +117,14 @@ export default async function DashboardPage() {
               <a href="/perfil" className="text-mist transition-colors hover:text-brass">
                 Editar perfil
               </a>
+              <a
+                href="https://docs.google.com/forms/d/e/1FAIpQLSdVC2-0O2E34_q-dpTvbBM9SrUvG1LnaC9Q2SPa4uht9NzG2g/viewform"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-mist transition-colors hover:text-brass"
+              >
+                Enviar opinión
+              </a>
             </nav>
           </div>
         </TasksProvider>
