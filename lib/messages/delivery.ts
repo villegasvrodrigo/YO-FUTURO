@@ -18,22 +18,40 @@ export interface DueProfileSummary {
   totalProfiles: number;
   due: { id: string; timezone: string; localHour: number }[];
   excluded: { id: string; timezone: string; error: string }[];
+  // Profiles with their daily emails paused, whatever their hour: never due. dueThisHour
+  // says whether it would have been their hour, so the log shows who was skipped for it.
+  paused: { id: string; timezone: string; dueThisHour: boolean }[];
 }
 
 /**
- * Sorts every profile into "due this hour" or "excluded" (invalid timezone), and
+ * Sorts every profile into "due this hour", "excluded" (invalid timezone) or "paused", and
  * records the local hour computed for each — the diagnostic detail a hand-wavy
  * `.filter(isDueNow)` throws away, needed to tell "nobody was due" apart from
  * "someone should have been but got silently skipped".
+ * Only an explicit `delivery_paused === true` pauses: false, null or a missing field (for
+ * instance, if the column didn't exist yet) are processed as usual, so a problem with the
+ * pause can never stop everyone's emails.
  */
 export function summarizeDueProfiles(
-  profiles: { id: string; timezone: string; delivery_hour_local: number }[],
+  profiles: { id: string; timezone: string; delivery_hour_local: number; delivery_paused?: boolean | null }[],
   nowUtc: Date
 ): DueProfileSummary {
   const due: DueProfileSummary['due'] = [];
   const excluded: DueProfileSummary['excluded'] = [];
+  const paused: DueProfileSummary['paused'] = [];
 
   for (const profile of profiles) {
+    if (profile.delivery_paused === true) {
+      let dueThisHour = false;
+      try {
+        dueThisHour = getLocalHour(profile.timezone, nowUtc) === profile.delivery_hour_local;
+      } catch {
+        // An invalid timezone doesn't matter here: the profile is skipped either way.
+      }
+      paused.push({ id: profile.id, timezone: profile.timezone, dueThisHour });
+      continue;
+    }
+
     try {
       const localHour = getLocalHour(profile.timezone, nowUtc);
       if (localHour === profile.delivery_hour_local) {
@@ -48,7 +66,7 @@ export function summarizeDueProfiles(
     }
   }
 
-  return { nowUtcIso: nowUtc.toISOString(), totalProfiles: profiles.length, due, excluded };
+  return { nowUtcIso: nowUtc.toISOString(), totalProfiles: profiles.length, due, excluded, paused };
 }
 
 /**

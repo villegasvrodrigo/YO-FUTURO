@@ -107,6 +107,81 @@ describe('summarizeDueProfiles', () => {
 
     expect(summary.nowUtcIso).toBe(now.toISOString());
   });
+
+  describe('paused daily emails', () => {
+    const mx = { timezone: 'America/Mexico_City', delivery_hour_local: 8 };
+
+    it('never marks a paused profile as due, even at its hour', () => {
+      const summary = summarizeDueProfiles([{ id: 'p', ...mx, delivery_paused: true }], now);
+
+      expect(summary.due).toEqual([]);
+      expect(summary.paused).toEqual([{ id: 'p', timezone: 'America/Mexico_City', dueThisHour: true }]);
+    });
+
+    it.each([
+      ['false', false],
+      ['null', null],
+      ['a missing field (column not there yet)', undefined],
+    ])('processes a profile as usual when the pause is %s', (_label, value) => {
+      const profile = value === undefined ? { id: 'a', ...mx } : { id: 'a', ...mx, delivery_paused: value };
+
+      const summary = summarizeDueProfiles([profile], now);
+
+      expect(summary.due).toEqual([{ id: 'a', timezone: 'America/Mexico_City', localHour: 8 }]);
+      expect(summary.paused).toEqual([]);
+    });
+
+    it('only pauses on an explicit true, not on other truthy-looking values', () => {
+      const odd = [
+        { id: 'a', ...mx, delivery_paused: 'true' as unknown as boolean },
+        { id: 'b', ...mx, delivery_paused: 1 as unknown as boolean },
+      ];
+
+      const summary = summarizeDueProfiles(odd, now);
+
+      expect(summary.due.map((p) => p.id)).toEqual(['a', 'b']);
+      expect(summary.paused).toEqual([]);
+    });
+
+    it('a paused profile does not affect the others at the same hour', () => {
+      const profiles = [
+        { id: 'rodrigo', ...mx },
+        { id: 'pausada', ...mx, delivery_paused: true },
+        { id: 'michelle', ...mx, delivery_paused: false },
+      ];
+
+      const summary = summarizeDueProfiles(profiles, now);
+
+      expect(summary.totalProfiles).toBe(3);
+      expect(summary.due.map((p) => p.id)).toEqual(['rodrigo', 'michelle']);
+      expect(summary.paused.map((p) => p.id)).toEqual(['pausada']);
+    });
+
+    it('counts paused profiles of every hour, and says whether this was their hour', () => {
+      const profiles = [
+        { id: 'now', ...mx, delivery_paused: true },
+        { id: 'later', timezone: 'America/Mexico_City', delivery_hour_local: 20, delivery_paused: true },
+      ];
+
+      const summary = summarizeDueProfiles(profiles, now);
+
+      expect(summary.paused).toEqual([
+        { id: 'now', timezone: 'America/Mexico_City', dueThisHour: true },
+        { id: 'later', timezone: 'America/Mexico_City', dueThisHour: false },
+      ]);
+    });
+
+    it('keeps a paused profile with an invalid timezone as paused, without throwing', () => {
+      const summary = summarizeDueProfiles(
+        [{ id: 'bad', timezone: 'Not/AZone', delivery_hour_local: 8, delivery_paused: true }],
+        now
+      );
+
+      expect(summary.paused).toEqual([{ id: 'bad', timezone: 'Not/AZone', dueThisHour: false }]);
+      expect(summary.excluded).toEqual([]);
+      expect(summary.due).toEqual([]);
+    });
+  });
 });
 
 describe('getLocalDateString', () => {

@@ -17,6 +17,9 @@ export interface Profile {
   current_energy_summary: string | null;
   blocking_pattern: string | null;
   future_vision: string | null;
+  // Optional so code keeps working if the column (migration 0008) is missing: only an
+  // explicit true pauses the daily emails.
+  delivery_paused?: boolean;
   created_at: string;
   updated_at: string;
 }

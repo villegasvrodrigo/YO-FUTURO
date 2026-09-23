@@ -944,3 +944,97 @@ describe('GET /api/cron/send-messages — daily insight', () => {
     consoleError.mockRestore();
   });
 });
+
+describe('GET /api/cron/send-messages — paused daily emails', () => {
+  const originalSecret = process.env.CRON_SECRET;
+
+  // Two users due at 10:00 UTC; `pausedOverrides` lets a test pause one of them.
+  function setupTwoUsers(pausedOverrides: Record<string, unknown> = { delivery_paused: true }) {
+    const paused = makeProfile({ id: 'user-paused', ...pausedOverrides });
+    const active = makeProfile({ id: 'user-active' });
+    const fake = createFakeSupabase({
+      profiles: [paused, active],
+      recentMessages: { 'user-paused': [], 'user-active': [] },
+    });
+    vi.mocked(createAdminClient).mockReturnValue(fake.client as never);
+    vi.mocked(generateMessage).mockResolvedValue({ content: 'Hoy diste un paso más.', modelUsed: 'claude-sonnet-5' });
+    vi.mocked(sendDailyEmail).mockResolvedValue({ providerId: 'email-1', status: 'sent', error: null });
+    return { fake };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-15T10:00:00Z'));
+    process.env.CRON_SECRET = 'right-secret';
+    vi.mocked(prepareDailyTasks).mockResolvedValue(null);
+    vi.mocked(saveDailyTasks).mockResolvedValue('saved');
+    vi.mocked(prepareDailyInsight).mockResolvedValue(null);
+    vi.mocked(saveDailyInsight).mockResolvedValue('saved');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env.CRON_SECRET = originalSecret;
+    vi.mocked(createAdminClient).mockReset();
+    vi.mocked(generateMessage).mockReset();
+    vi.mocked(sendDailyEmail).mockReset();
+    vi.mocked(prepareDailyTasks).mockReset();
+    vi.mocked(saveDailyTasks).mockReset();
+    vi.mocked(prepareDailyInsight).mockReset();
+    vi.mocked(saveDailyInsight).mockReset();
+  });
+
+  it('does nothing at all for a paused user: no message, tasks, insight or email', async () => {
+    const { fake } = setupTwoUsers();
+
+    const response = await GET(cronRequest());
+
+    expect(await response.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
+    expect(vi.mocked(generateMessage).mock.calls.map(([p]) => p.id)).toEqual(['user-active']);
+    expect(vi.mocked(prepareDailyTasks).mock.calls.map(([, p]) => p.id)).toEqual(['user-active']);
+    expect(vi.mocked(prepareDailyInsight).mock.calls.map(([, p]) => p.id)).toEqual(['user-active']);
+    expect(sendDailyEmail).toHaveBeenCalledTimes(1);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-active@example.com', EMAIL_WITHOUT_TASKS);
+    const inserts = fake.ops.filter((op) => op.table === 'messages' && op.kind === 'insert');
+    expect(inserts.map((op) => op.payload?.user_id)).toEqual(['user-active']);
+  });
+
+  it.each([
+    ['false', { delivery_paused: false }],
+    ['null', { delivery_paused: null }],
+    ['missing (column not there yet)', {}],
+  ])('processes a user normally when the pause is %s', async (_label, overrides) => {
+    setupTwoUsers(overrides);
+
+    const response = await GET(cronRequest());
+
+    expect(await response.json()).toEqual({ processed: 2, succeeded: 2, failed: 0 });
+    expect(sendDailyEmail).toHaveBeenCalledTimes(2);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-paused@example.com', EMAIL_WITHOUT_TASKS);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-active@example.com', EMAIL_WITHOUT_TASKS);
+  });
+
+  it('logs how many are paused, and each paused user whose hour it was', async () => {
+    setupTwoUsers();
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await GET(cronRequest());
+
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    expect(lines.some((line) => line.includes('elegibles esta hora: 1') && line.includes('en pausa: 1'))).toBe(true);
+    expect(lines.some((line) => line.includes('en pausa: perfil user-paused (le tocaba esta hora'))).toBe(true);
+    log.mockRestore();
+  });
+
+  it('does not log a paused user whose hour it was not, but still counts them', async () => {
+    setupTwoUsers({ delivery_paused: true, delivery_hour_local: 20 });
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    await GET(cronRequest());
+
+    const lines = log.mock.calls.map((call) => String(call[0]));
+    expect(lines.some((line) => line.includes('en pausa: 1'))).toBe(true);
+    expect(lines.some((line) => line.includes('en pausa: perfil user-paused'))).toBe(false);
+    log.mockRestore();
+  });
+});

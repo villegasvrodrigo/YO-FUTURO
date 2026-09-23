@@ -39,11 +39,16 @@ export async function GET(request: NextRequest) {
 
   const summary = summarizeDueProfiles(profiles as Profile[], now);
   console.log(
-    `[cron] hora de referencia (UTC): ${summary.nowUtcIso} — perfiles con onboarding completo: ${summary.totalProfiles}, elegibles esta hora: ${summary.due.length}, excluidos por timezone inválida: ${summary.excluded.length}`
+    `[cron] hora de referencia (UTC): ${summary.nowUtcIso} — perfiles con onboarding completo: ${summary.totalProfiles}, elegibles esta hora: ${summary.due.length}, excluidos por timezone inválida: ${summary.excluded.length}, en pausa: ${summary.paused.length}`
   );
   summary.due.forEach((p) => {
     console.log(`[cron]   elegible: perfil ${p.id} (timezone=${p.timezone}, hora local=${p.localHour})`);
   });
+  summary.paused
+    .filter((p) => p.dueThisHour)
+    .forEach((p) => {
+      console.log(`[cron]   en pausa: perfil ${p.id} (le tocaba esta hora; no se genera ni se envía nada)`);
+    });
   summary.excluded.forEach((p) => {
     // Una `timezone` inválida hace que Intl.DateTimeFormat lance RangeError.
     // Se excluye ese perfil en lugar de tumbar el batch completo.
