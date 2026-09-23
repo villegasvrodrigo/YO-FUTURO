@@ -6,6 +6,8 @@ import { BottomNav } from '@/app/_components/BottomNav';
 import { CompletionRing } from './CompletionRing';
 import { TaskList, TaskListHint, TasksProvider } from './TaskList';
 import { DailyInsight, DailyInsightHint } from './DailyInsight';
+import { DailyMessage, PausedNotice } from './DailyMessage';
+import { messageDay } from '@/lib/messages/messageDay';
 import { getLatestInsight } from '@/lib/insights/latest';
 
 export default async function DashboardPage() {
@@ -15,7 +17,7 @@ export default async function DashboardPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('name, timezone')
+    .select('name, timezone, delivery_paused')
     .eq('id', user.id)
     .maybeSingle();
 
@@ -28,6 +30,9 @@ export default async function DashboardPage() {
     .maybeSingle();
 
   const name = profile?.name?.trim();
+  // Which day the latest message is from, in the user's time zone: the title and the line
+  // under the message say "today" only when it really is today.
+  const latestMessageDay = latestMessage ? messageDay(latestMessage.generated_at, profile?.timezone, new Date()) : null;
 
   // Today's tasks: the ones saved for the user's LOCAL date today. Any problem here (bad
   // timezone, failed read) just means no tasks are shown; it never breaks the dashboard.
@@ -72,40 +77,15 @@ export default async function DashboardPage() {
               <CompletionRing />
             </div>
 
-            <p className="mb-1 font-mono text-xs uppercase tracking-[0.1em] text-brass">
-              Tu mensaje de hoy
-            </p>
-            {latestMessage && (
-              <p className="mb-6 font-mono text-xs text-mist">
-                {new Date(latestMessage.generated_at).toLocaleDateString('es-MX', {
-                  day: '2-digit',
-                  month: 'short',
-                })}
-              </p>
-            )}
+            {profile?.delivery_paused === true && <PausedNotice />}
 
-            {latestMessage ? (
-              <div className="mt-6 rounded border-t-2 border-brass-dim bg-dusk-2 px-7 py-8">
-                <p className="whitespace-pre-line font-serif text-lg italic leading-relaxed text-parchment">
-                  {latestMessage.content}
-                </p>
-                <span className="mt-5 block font-mono text-xs text-mist">
-                  {latestMessage.model_used} · generado hoy
-                </span>
-              </div>
-            ) : (
-              <div className="mt-6 rounded border-t-2 border-rule bg-dusk-2 px-7 py-8">
-                <p className="font-serif text-lg italic leading-relaxed text-mist">
-                  Tu yo futuro todavía no te ha escrito.
-                </p>
-              </div>
-            )}
+            <DailyMessage message={latestMessage} day={latestMessageDay} />
 
             <section className="mt-10">
               <h2 className="font-serif text-2xl text-parchment">Tus tareas de hoy</h2>
               <TaskListHint />
               <div className="mt-3 rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
-                <TaskList />
+                <TaskList paused={profile?.delivery_paused === true} />
               </div>
             </section>
 
@@ -113,7 +93,7 @@ export default async function DashboardPage() {
               <h2 className="font-serif text-2xl text-parchment">Daily insight</h2>
               <DailyInsightHint insight={latestInsight} />
               <div className="mt-3">
-                <DailyInsight insight={latestInsight} />
+                <DailyInsight insight={latestInsight} paused={profile?.delivery_paused === true} />
               </div>
             </section>
 

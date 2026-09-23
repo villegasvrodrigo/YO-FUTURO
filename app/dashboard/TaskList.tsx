@@ -103,11 +103,15 @@ export function TaskListHint() {
   );
 }
 
-export function TaskList() {
+export const NO_TASKS_COPY = 'Tus tareas llegan con tu mensaje de hoy.';
+export const NO_TASKS_PAUSED_COPY = 'Tus correos están en pausa: tus tareas llegarán cuando los reanudes.';
+
+// `paused`: the user's daily emails are paused, so no tasks are coming until they resume.
+export function TaskList({ paused = false }: { paused?: boolean }) {
   const { tasks, pendingIds, notice, toggle } = useDailyTasks();
 
   if (tasks.length === 0) {
-    return <p className="text-sm text-mist">Tus tareas llegan con tu mensaje de hoy.</p>;
+    return <p className="text-sm text-mist">{paused ? NO_TASKS_PAUSED_COPY : NO_TASKS_COPY}</p>;
   }
 
   return (

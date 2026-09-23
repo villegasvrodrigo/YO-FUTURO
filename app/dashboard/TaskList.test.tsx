@@ -102,3 +102,27 @@ describe('TaskList + CompletionRing (server render)', () => {
     expect(() => renderToString(<Orphan />)).toThrow('dentro de <TasksProvider>');
   });
 });
+
+describe('TaskList while the daily emails are paused', () => {
+  it('with no tasks: says they will come once the emails are resumed', () => {
+    const html = renderToString(
+      <TasksProvider initialTasks={[]}>
+        <TaskList paused />
+      </TasksProvider>
+    );
+
+    expect(html).toContain('Tus correos están en pausa: tus tareas llegarán cuando los reanudes.');
+    expect(html).not.toContain('Tus tareas llegan con tu mensaje de hoy.');
+  });
+
+  it("with today's tasks (paused after they arrived): still shows them to check", () => {
+    const html = renderToString(
+      <TasksProvider initialTasks={[task(1, false), task(2, true), task(3, false)]}>
+        <TaskList paused />
+      </TasksProvider>
+    );
+
+    expect(count(html, 'type="checkbox"')).toBe(3);
+    expect(html).not.toContain('en pausa');
+  });
+});

@@ -1,6 +1,7 @@
 import type { LatestInsight } from '@/lib/insights/latest';
 
 export const NO_INSIGHT_COPY = 'Tu insight llega con tu mensaje de hoy.';
+export const NO_INSIGHT_PAUSED_COPY = 'Tus correos están en pausa: tu insight llegará cuando los reanudes.';
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
@@ -29,11 +30,11 @@ export function DailyInsightHint({ insight }: { insight: LatestInsight | null })
  * (it may be from an earlier day, and the date makes that clear), or a friendly message
  * when there is none yet or it couldn't be read.
  */
-export function DailyInsight({ insight }: { insight: LatestInsight | null }) {
+export function DailyInsight({ insight, paused = false }: { insight: LatestInsight | null; paused?: boolean }) {
   if (!insight) {
     return (
       <div className="rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
-        <p className="text-sm text-mist">{NO_INSIGHT_COPY}</p>
+        <p className="text-sm text-mist">{paused ? NO_INSIGHT_PAUSED_COPY : NO_INSIGHT_COPY}</p>
       </div>
     );
   }

@@ -16,7 +16,7 @@ export default async function HistorialPage() {
   if (!messages || messages.length === 0) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('delivery_hour_local, timezone')
+      .select('delivery_hour_local, timezone, delivery_paused')
       .eq('id', user.id)
       .single();
 
@@ -27,7 +27,7 @@ export default async function HistorialPage() {
           <div className="rounded border-t-2 border-rule bg-dusk-2 px-7 py-8">
             <p className="font-serif text-lg italic leading-relaxed text-mist">
               {profile
-                ? emptyStateCopy(profile.delivery_hour_local, profile.timezone)
+                ? emptyStateCopy(profile.delivery_hour_local, profile.timezone, profile.delivery_paused === true)
                 : 'Tu yo futuro todavía no te ha escrito.'}
             </p>
           </div>

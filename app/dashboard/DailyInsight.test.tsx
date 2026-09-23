@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToString } from 'react-dom/server';
-import { DailyInsight, DailyInsightHint, NO_INSIGHT_COPY, shortInsightDate } from './DailyInsight';
+import { DailyInsight, DailyInsightHint, NO_INSIGHT_COPY, NO_INSIGHT_PAUSED_COPY, shortInsightDate } from './DailyInsight';
 
 const INSIGHT = {
   insightDate: '2026-09-23',
@@ -62,5 +62,22 @@ describe('DailyInsightHint', () => {
 
   it('shows nothing when there is no insight (the friendly message is shown instead)', () => {
     expect(renderToString(<DailyInsightHint insight={null} />)).toBe('');
+  });
+});
+
+describe('DailyInsight while the daily emails are paused', () => {
+  it('with no insight: says it will come once the emails are resumed', () => {
+    const html = renderToString(<DailyInsight insight={null} paused />);
+
+    expect(html).toContain(escaped(NO_INSIGHT_PAUSED_COPY));
+    expect(html).not.toContain(escaped(NO_INSIGHT_COPY));
+  });
+
+  it('with an earlier insight: still shows it with its date', () => {
+    const html = renderToString(<DailyInsight insight={INSIGHT} paused />);
+
+    expect(html).toContain(escaped(INSIGHT.content));
+    expect(html).toContain('>23 sep<');
+    expect(html).not.toContain('en pausa');
   });
 });
