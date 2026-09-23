@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/browser';
 import { validateProfileStep, validateDeliveryHour } from '@/lib/onboarding/validate';
 import { HOUR_OPTIONS, hourLabel } from '@/lib/messages/hourLabel';
 import { SAVE_PROFILE_FAILED, updateProfile } from '@/lib/perfil/updateProfile';
+import { DeliveryPauseSection } from './DeliveryPauseSection';
 import type { Profile, Goal, GoalStatus, FocusArea, Tone } from '@/lib/types';
 
 const fieldClass =
@@ -295,6 +296,8 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
             {savingProfile ? 'Guardando…' : 'Guardar cambios'}
           </button>
         </section>
+
+        <DeliveryPauseSection profileId={profile.id} initialPaused={profile.delivery_paused === true} />
 
         <section className="mt-8">
           <h2 className="mb-4 font-serif text-xl text-parchment">Tus metas</h2>
