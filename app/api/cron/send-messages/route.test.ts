@@ -16,6 +16,12 @@ vi.mock('@/lib/tasks/daily', () => ({
 vi.mock('@/lib/tasks/save', () => ({
   saveDailyTasks: vi.fn(),
 }));
+vi.mock('@/lib/insights/daily', () => ({
+  prepareDailyInsight: vi.fn(),
+}));
+vi.mock('@/lib/insights/save', () => ({
+  saveDailyInsight: vi.fn(),
+}));
 
 import { GET } from './route';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -23,6 +29,8 @@ import { generateMessage } from '@/lib/messages/generate';
 import { sendDailyEmail } from '@/lib/email/send';
 import { prepareDailyTasks } from '@/lib/tasks/daily';
 import { saveDailyTasks } from '@/lib/tasks/save';
+import { prepareDailyInsight } from '@/lib/insights/daily';
+import { saveDailyInsight } from '@/lib/insights/save';
 import { dashboardLine } from '@/lib/email/body';
 
 type QueryResult = { data: unknown; error: unknown };
@@ -200,6 +208,9 @@ describe('GET /api/cron/send-messages — batch processing', () => {
     // No tasks by default: these tests are about the message flow, as before tasks existed.
     vi.mocked(prepareDailyTasks).mockResolvedValue(null);
     vi.mocked(saveDailyTasks).mockResolvedValue('saved');
+    // No insight by default either.
+    vi.mocked(prepareDailyInsight).mockResolvedValue(null);
+    vi.mocked(saveDailyInsight).mockResolvedValue('saved');
   });
 
   afterEach(() => {
@@ -210,6 +221,8 @@ describe('GET /api/cron/send-messages — batch processing', () => {
     vi.mocked(sendDailyEmail).mockReset();
     vi.mocked(prepareDailyTasks).mockReset();
     vi.mocked(saveDailyTasks).mockReset();
+    vi.mocked(prepareDailyInsight).mockReset();
+    vi.mocked(saveDailyInsight).mockReset();
   });
 
   it('skips a user who already received a message earlier the same local day, without generating or sending', async () => {
@@ -520,6 +533,8 @@ describe('GET /api/cron/send-messages — daily tasks', () => {
     vi.setSystemTime(new Date('2026-01-15T10:00:00Z'));
     process.env.CRON_SECRET = 'right-secret';
     vi.mocked(saveDailyTasks).mockResolvedValue('saved');
+    vi.mocked(prepareDailyInsight).mockResolvedValue(null);
+    vi.mocked(saveDailyInsight).mockResolvedValue('saved');
   });
 
   afterEach(() => {
@@ -530,6 +545,8 @@ describe('GET /api/cron/send-messages — daily tasks', () => {
     vi.mocked(sendDailyEmail).mockReset();
     vi.mocked(prepareDailyTasks).mockReset();
     vi.mocked(saveDailyTasks).mockReset();
+    vi.mocked(prepareDailyInsight).mockReset();
+    vi.mocked(saveDailyInsight).mockReset();
   });
 
   it('with no tasks, sends exactly the message and saves nothing (the email is as it was before tasks)', async () => {
@@ -670,5 +687,260 @@ describe('GET /api/cron/send-messages — daily tasks', () => {
       ['status', 'active'],
     ]);
     expect(goalsRead?.orders).toEqual([['created_at', { ascending: true }]]);
+  });
+});
+
+describe('GET /api/cron/send-messages — daily insight', () => {
+  const originalSecret = process.env.CRON_SECRET;
+  const TASKS = [
+    'Escribe en tu calendario la hora para revisar tu pipeline.',
+    'Elige algo que hayas estado posponiendo y avanza hoy una parte pequeña.',
+    'Anota tres logros concretos que ya conseguiste este año.',
+  ];
+  const PREPARED_TASKS = { taskDate: '2026-01-15', tasks: TASKS };
+  const INSIGHT = {
+    insightDate: '2026-01-15',
+    content: 'Estás aprendiendo que la calma también se practica. Poco a poco se nota. Eso ya es tuyo.',
+    modelUsed: 'claude-sonnet-5',
+  };
+  const EMAIL_WITH_TASKS =
+    'Hoy diste un paso más.\n\n—\n\nTus tareas de hoy:\n\n' +
+    `1. ${TASKS[0]}\n2. ${TASKS[1]}\n3. ${TASKS[2]}\n\n${dashboardLine()}`;
+
+  function setupDueUser() {
+    const profile = makeProfile();
+    const goal = { id: 'goal-1', user_id: 'user-1', description: 'correr 5k', status: 'active' };
+    const fake = createFakeSupabase({
+      profiles: [profile],
+      goals: { 'user-1': [goal] },
+      recentMessages: { 'user-1': [] },
+    });
+    vi.mocked(createAdminClient).mockReturnValue(fake.client as never);
+    vi.mocked(generateMessage).mockResolvedValue({
+      content: 'Hoy diste un paso más.',
+      modelUsed: 'claude-sonnet-5',
+    });
+    vi.mocked(sendDailyEmail).mockResolvedValue({
+      providerId: 'email-123',
+      status: 'sent',
+      error: null,
+    });
+    return { profile, goal, fake };
+  }
+
+  // Runs the cron once and returns the exact text the email was sent with.
+  async function sentEmailText() {
+    const response = await GET(cronRequest());
+    expect(await response.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
+    expect(sendDailyEmail).toHaveBeenCalledTimes(1);
+    return vi.mocked(sendDailyEmail).mock.calls[0][1];
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-15T10:00:00Z'));
+    process.env.CRON_SECRET = 'right-secret';
+    vi.mocked(prepareDailyTasks).mockResolvedValue(null);
+    vi.mocked(saveDailyTasks).mockResolvedValue('saved');
+    vi.mocked(prepareDailyInsight).mockResolvedValue(INSIGHT);
+    vi.mocked(saveDailyInsight).mockResolvedValue('saved');
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    process.env.CRON_SECRET = originalSecret;
+    vi.mocked(createAdminClient).mockReset();
+    vi.mocked(generateMessage).mockReset();
+    vi.mocked(sendDailyEmail).mockReset();
+    vi.mocked(prepareDailyTasks).mockReset();
+    vi.mocked(saveDailyTasks).mockReset();
+    vi.mocked(prepareDailyInsight).mockReset();
+    vi.mocked(saveDailyInsight).mockReset();
+  });
+
+  describe('the email is exactly the same with or without an insight', () => {
+    it('without tasks', async () => {
+      setupDueUser();
+      vi.mocked(prepareDailyInsight).mockResolvedValue(INSIGHT);
+      const withInsight = await sentEmailText();
+
+      vi.mocked(sendDailyEmail).mockClear();
+      vi.mocked(prepareDailyInsight).mockResolvedValue(null);
+      setupDueUser();
+      const withoutInsight = await sentEmailText();
+
+      expect(withInsight).toBe(EMAIL_WITHOUT_TASKS);
+      expect(withoutInsight).toBe(EMAIL_WITHOUT_TASKS);
+      expect(withInsight).not.toContain(INSIGHT.content);
+    });
+
+    it('with tasks', async () => {
+      setupDueUser();
+      vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED_TASKS);
+      vi.mocked(prepareDailyInsight).mockResolvedValue(INSIGHT);
+      const withInsight = await sentEmailText();
+
+      vi.mocked(sendDailyEmail).mockClear();
+      vi.mocked(prepareDailyInsight).mockResolvedValue(null);
+      setupDueUser();
+      const withoutInsight = await sentEmailText();
+
+      expect(withInsight).toBe(EMAIL_WITH_TASKS);
+      expect(withoutInsight).toBe(EMAIL_WITH_TASKS);
+      expect(withInsight).not.toContain(INSIGHT.content);
+    });
+
+    it('when the insight fails, is slow or rejects', async () => {
+      for (const insight of [
+        () => Promise.resolve(null),
+        () => new Promise<null>(() => {}),
+        () => Promise.reject(new Error('insight roto')),
+      ]) {
+        setupDueUser();
+        vi.mocked(sendDailyEmail).mockClear();
+        vi.mocked(prepareDailyInsight).mockImplementation(insight as never);
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        const pending = GET(cronRequest());
+        // Let everything that does not depend on the insight run.
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(sendDailyEmail).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(sendDailyEmail).mock.calls[0][1]).toBe(EMAIL_WITHOUT_TASKS);
+        consoleError.mockRestore();
+        void pending;
+      }
+    });
+  });
+
+  it('starts the insight before sending, with the profile, the active goals, the message and the run time', async () => {
+    const { profile, goal, fake } = setupDueUser();
+
+    await GET(cronRequest());
+
+    expect(prepareDailyInsight).toHaveBeenCalledTimes(1);
+    expect(prepareDailyInsight).toHaveBeenCalledWith(
+      fake.client,
+      profile,
+      [goal],
+      'Hoy diste un paso más.',
+      new Date('2026-01-15T10:00:00Z')
+    );
+    expect(vi.mocked(prepareDailyInsight).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(sendDailyEmail).mock.invocationCallOrder[0]
+    );
+  });
+
+  it('starts the insight at the same time as the tasks: the tasks do not wait for it', async () => {
+    setupDueUser();
+    vi.mocked(prepareDailyInsight).mockReturnValue(new Promise(() => {}));
+
+    const pending = GET(cronRequest());
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(prepareDailyInsight).toHaveBeenCalledTimes(1);
+    expect(prepareDailyTasks).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(prepareDailyInsight).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(prepareDailyTasks).mock.invocationCallOrder[0]
+    );
+    void pending;
+  });
+
+  it('sends the email without waiting for a slow insight, and saves the insight once it arrives', async () => {
+    const { fake } = setupDueUser();
+    let resolveInsight: (value: typeof INSIGHT) => void = () => {};
+    vi.mocked(prepareDailyInsight).mockReturnValue(new Promise((resolve) => (resolveInsight = resolve)));
+
+    const pending = GET(cronRequest());
+    await vi.advanceTimersByTimeAsync(0);
+
+    // The email went out and was logged while the insight was still being written.
+    expect(sendDailyEmail).toHaveBeenCalledTimes(1);
+    expect(fake.ops.some((op) => op.table === 'email_log')).toBe(true);
+    expect(saveDailyInsight).not.toHaveBeenCalled();
+
+    resolveInsight(INSIGHT);
+    const response = await pending;
+
+    expect(await response.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
+    expect(saveDailyInsight).toHaveBeenCalledWith('user-1', '2026-01-15', INSIGHT, fake.client);
+  });
+
+  it('saves the insight last: after sending, the message status, the email log and the tasks', async () => {
+    const { fake } = setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED_TASKS);
+    let opsWrittenBeforeSave: string[] = [];
+    vi.mocked(saveDailyInsight).mockImplementation(async () => {
+      opsWrittenBeforeSave = fake.ops.filter((op) => op.kind !== 'select').map((op) => `${op.table}:${op.kind}`);
+      return 'saved';
+    });
+
+    await GET(cronRequest());
+
+    expect(saveDailyInsight).toHaveBeenCalledTimes(1);
+    expect(saveDailyInsight).toHaveBeenCalledWith('user-1', '2026-01-15', INSIGHT, fake.client);
+    expect(opsWrittenBeforeSave).toEqual(['messages:insert', 'messages:update', 'email_log:insert']);
+    expect(vi.mocked(saveDailyInsight).mock.invocationCallOrder[0]).toBeGreaterThan(
+      vi.mocked(saveDailyTasks).mock.invocationCallOrder[0]
+    );
+  });
+
+  it('with no insight, saves no insight and the user still succeeds', async () => {
+    setupDueUser();
+    vi.mocked(prepareDailyInsight).mockResolvedValue(null);
+
+    await sentEmailText();
+
+    expect(saveDailyInsight).not.toHaveBeenCalled();
+  });
+
+  it('an insight that rejects does not affect the email, the tasks, the message status or the result', async () => {
+    const { fake } = setupDueUser();
+    vi.mocked(prepareDailyTasks).mockResolvedValue(PREPARED_TASKS);
+    vi.mocked(prepareDailyInsight).mockRejectedValue(new Error('insight roto'));
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect(await sentEmailText()).toBe(EMAIL_WITH_TASKS);
+
+    expect(saveDailyTasks).toHaveBeenCalledTimes(1);
+    expect(saveDailyInsight).not.toHaveBeenCalled();
+    const update = fake.ops.find((op) => op.table === 'messages' && op.kind === 'update');
+    expect(update?.payload).toEqual({ send_status: 'sent', sent_at: '2026-01-15T10:00:00.000Z' });
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it('a failed insight save does not affect the result', async () => {
+    setupDueUser();
+    vi.mocked(saveDailyInsight).mockResolvedValue('failed');
+
+    expect(await sentEmailText()).toBe(EMAIL_WITHOUT_TASKS);
+  });
+
+  it('stores only the message in `messages`, never the insight', async () => {
+    const { fake } = setupDueUser();
+
+    await GET(cronRequest());
+
+    const insert = fake.ops.find((op) => op.table === 'messages' && op.kind === 'insert');
+    expect(insert?.payload).toEqual({
+      user_id: 'user-1',
+      content: 'Hoy diste un paso más.',
+      model_used: 'claude-sonnet-5',
+      send_status: 'pending',
+    });
+  });
+
+  it('makes no insight work at all when the user has no email', async () => {
+    const { fake } = setupDueUser();
+    fake.getUserById.mockResolvedValueOnce({ data: { user: null } } as never);
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const response = await GET(cronRequest());
+
+    expect(await response.json()).toEqual({ processed: 1, succeeded: 0, failed: 1 });
+    expect(prepareDailyInsight).not.toHaveBeenCalled();
+    expect(saveDailyInsight).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

@@ -6,6 +6,8 @@ import { sendDailyEmail } from '@/lib/email/send';
 import { buildEmailText } from '@/lib/email/body';
 import { prepareDailyTasks } from '@/lib/tasks/daily';
 import { saveDailyTasks } from '@/lib/tasks/save';
+import { prepareDailyInsight } from '@/lib/insights/daily';
+import { saveDailyInsight } from '@/lib/insights/save';
 import type { Profile, Goal, MessageRecord } from '@/lib/types';
 
 // El batch por hora puede tardar: procesamos usuarios en tandas y cada uno
@@ -159,6 +161,17 @@ async function processUser(
     throw new Error('Usuario sin email registrado');
   }
 
+  // Insight del día (opcional): arranca ya, al mismo tiempo que las tareas, pero el correo
+  // NO lo espera y no lo incluye. Se espera y se guarda al final, después del envío. Nunca
+  // lanza un error y devuelve null si algo falla o tarda más de 20 s; el .catch es solo una
+  // red de seguridad para que un rechazo inesperado no quede sin manejar mientras se envía.
+  const insightPromise = prepareDailyInsight(supabase, profile, (goals as Goal[]) ?? [], content, now).catch(
+    (err) => {
+      console.error(`[cron]   sin insight: perfil ${profile.id}:`, err);
+      return null;
+    }
+  );
+
   // Tareas del día (opcionales): nunca lanza un error y devuelve null si algo falla o
   // tarda más de 20 s. Con null, el correo sale exactamente como antes de las tareas.
   const dailyTasks = await prepareDailyTasks(supabase, profile, (goals as Goal[]) ?? [], content, now);
@@ -184,6 +197,13 @@ async function processUser(
   // un error: si falla, solo queda registrado.
   if (dailyTasks) {
     await saveDailyTasks(profile.id, dailyTasks.taskDate, dailyTasks.tasks, supabase);
+  }
+
+  // Insight del día: se espera y se guarda hasta aquí, con el correo ya enviado. Nunca lanza
+  // un error: si no hay insight o no se pudo guardar, solo queda registrado.
+  const dailyInsight = await insightPromise;
+  if (dailyInsight) {
+    await saveDailyInsight(profile.id, dailyInsight.insightDate, dailyInsight, supabase);
   }
 
   console.log(`[cron]   enviado: perfil ${profile.id} (mensaje ${inserted.id}, email status=${emailResult.status})`);

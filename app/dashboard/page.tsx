@@ -5,6 +5,8 @@ import type { DailyTask } from '@/lib/types';
 import { BottomNav } from '@/app/_components/BottomNav';
 import { CompletionRing } from './CompletionRing';
 import { TaskList, TaskListHint, TasksProvider } from './TaskList';
+import { DailyInsight } from './DailyInsight';
+import { getLatestInsight } from '@/lib/insights/latest';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -48,6 +50,10 @@ export default async function DashboardPage() {
       console.error('[dashboard] no se pudo calcular la fecha local para las tareas:', err);
     }
   }
+
+  // The most recent insight, from whatever day, read with the user's own session. A failed
+  // read just shows the friendly message; it never breaks the dashboard.
+  const latestInsight = await getLatestInsight(supabase, user.id);
 
   return (
     <>
@@ -105,9 +111,7 @@ export default async function DashboardPage() {
 
             <section className="mt-8">
               <h2 className="mb-3 font-serif text-2xl text-parchment">Daily insight</h2>
-              <div className="rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
-                <p className="text-sm text-mist">Pronto verás aquí tu daily insight.</p>
-              </div>
+              <DailyInsight insight={latestInsight} />
             </section>
 
             <nav className="mt-8 flex gap-5 font-mono text-xs">
