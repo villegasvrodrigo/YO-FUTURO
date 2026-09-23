@@ -1,12 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { getLocalDateString } from '@/lib/messages/delivery';
-import { getTaskHistory } from '@/lib/tasks/history';
-import { buildProgress, type Progress } from '@/lib/tasks/progress';
+import { getFullTaskHistory } from '@/lib/tasks/history';
+import { buildProgress, type ProgressData } from '@/lib/tasks/progress';
 import { BottomNav } from '@/app/_components/BottomNav';
 import { ProgressView } from './ProgressView';
 
-export default async function ProgresoPage() {
+export default async function ProgresoPage({ searchParams }: PageProps<'/progreso'>) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
@@ -17,15 +17,19 @@ export default async function ProgresoPage() {
     .eq('id', user.id)
     .maybeSingle();
 
+  // The month to show comes from the address (?mes=2026-08); buildProgress keeps it between
+  // the first month with tasks and the current one.
+  const { mes } = await searchParams;
+
   // Read with the user's own session (never the service-role key) and computed on the
-  // user's LOCAL date. No timezone, no tasks in the last 90 days or any problem here just
-  // means the friendly no-data message is shown; it never breaks the screen.
-  let progress: Progress | null = null;
+  // user's LOCAL date. No timezone, no tasks yet or any problem here just means the
+  // friendly no-data message is shown; it never breaks the screen.
+  let progress: ProgressData | null = null;
   if (profile?.timezone) {
     try {
       const today = getLocalDateString(new Date(), profile.timezone);
-      const tasks = await getTaskHistory(supabase, user.id, today);
-      if (tasks.length > 0) progress = buildProgress(tasks, today);
+      const tasks = await getFullTaskHistory(supabase, user.id, today);
+      progress = buildProgress(tasks, today, mes);
     } catch (err) {
       console.error('[progreso] no se pudo calcular el progreso:', err);
     }

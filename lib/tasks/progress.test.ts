@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
   buildProgress,
-  completionRate,
-  currentStreak,
-  GRID_DAYS,
-  HISTORY_DAYS,
-  lastDays,
+  chooseMonth,
+  earliestMonth,
+  monthCalendar,
+  streakStats,
   type TaskProgressRow,
 } from './progress';
 
@@ -16,212 +15,258 @@ function day(date: string, done: number, total = 3): TaskProgressRow[] {
   return Array.from({ length: total }, (_, i) => ({ task_date: date, completed: i < done }));
 }
 
-describe('currentStreak', () => {
-  it('is 0 with no data', () => {
-    expect(currentStreak([], TODAY)).toBe(0);
+// A run of fulfilled days: one task checked on each of the `count` days ending on `last`.
+function run(last: string, count: number): TaskProgressRow[] {
+  return Array.from({ length: count }, (_, i) => {
+    const date = new Date(Date.parse(`${last}T00:00:00Z`) - i * 86_400_000).toISOString().slice(0, 10);
+    return day(date, 1);
+  }).flat();
+}
+
+describe('streakStats', () => {
+  it('with no data: everything is 0', () => {
+    expect(streakStats([], TODAY)).toEqual({ current: 0, best: 0, fulfilledDays: 0 });
   });
 
-  it('does not break on today with nothing checked, and counts yesterday', () => {
-    const tasks = [...day('2026-09-22', 0), ...day('2026-09-21', 1)];
-    expect(currentStreak(tasks, TODAY)).toBe(1);
+  it('counts fulfilled days (at least 1 checked) over the whole history', () => {
+    const tasks = [...day('2026-09-22', 3), ...day('2026-09-21', 0), ...day('2026-09-20', 1), ...day('2025-01-10', 2)];
+    expect(streakStats(tasks, TODAY).fulfilledDays).toBe(3);
   });
 
-  it('is 0 when today is the only day and nothing is checked yet', () => {
-    expect(currentStreak(day('2026-09-22', 0), TODAY)).toBe(0);
+  it('days without tasks in the middle neither break nor add to any streak', () => {
+    const tasks = [...day('2026-09-22', 1), ...day('2026-09-18', 1), ...day('2026-09-15', 1)];
+    expect(streakStats(tasks, TODAY)).toEqual({ current: 3, best: 3, fulfilledDays: 3 });
   });
 
-  it('counts today once at least 1 task is checked', () => {
-    const tasks = [...day('2026-09-22', 1), ...day('2026-09-21', 3)];
-    expect(currentStreak(tasks, TODAY)).toBe(2);
+  it('a day with tasks but none checked breaks the streak', () => {
+    const tasks = [...day('2026-09-22', 1), ...day('2026-09-21', 0), ...run('2026-09-20', 4)];
+    expect(streakStats(tasks, TODAY)).toEqual({ current: 1, best: 4, fulfilledDays: 5 });
   });
 
-  it('a single checked task is enough for a day', () => {
-    const tasks = [...day('2026-09-21', 1), ...day('2026-09-20', 1), ...day('2026-09-19', 1)];
-    expect(currentStreak(tasks, TODAY)).toBe(3);
+  it('the best streak can be in the past, longer than the current one', () => {
+    const tasks = [...run('2026-09-22', 2), ...day('2026-09-20', 0), ...run('2026-08-31', 10)];
+    const stats = streakStats(tasks, TODAY);
+    expect(stats.current).toBe(2);
+    expect(stats.best).toBe(10);
   });
 
-  it('skips one day without tasks between two fulfilled days', () => {
-    const tasks = [...day('2026-09-21', 2), ...day('2026-09-19', 1)];
-    expect(currentStreak(tasks, TODAY)).toBe(2);
+  it('today with nothing checked neither breaks the current streak nor the best one', () => {
+    const tasks = [...day('2026-09-22', 0), ...run('2026-09-21', 5)];
+    expect(streakStats(tasks, TODAY)).toEqual({ current: 5, best: 5, fulfilledDays: 5 });
   });
 
-  it('skips several days in a row without tasks', () => {
-    const tasks = [...day('2026-09-22', 1), ...day('2026-09-15', 1), ...day('2026-09-14', 3)];
-    expect(currentStreak(tasks, TODAY)).toBe(3);
+  it('today with at least one checked counts', () => {
+    const tasks = [...day('2026-09-22', 2), ...run('2026-09-21', 5)];
+    expect(streakStats(tasks, TODAY)).toEqual({ current: 6, best: 6, fulfilledDays: 6 });
   });
 
-  it('counts a day that has fewer than 3 tasks when 1 is checked', () => {
-    const tasks = [...day('2026-09-21', 1, 2), ...day('2026-09-20', 1)];
-    expect(currentStreak(tasks, TODAY)).toBe(2);
+  it('keeps a streak going across a month and a year', () => {
+    expect(streakStats(run('2027-01-02', 5), '2027-01-02')).toEqual({ current: 5, best: 5, fulfilledDays: 5 });
   });
 
-  it('breaks on an earlier day with tasks but none checked', () => {
-    const tasks = [
-      ...day('2026-09-22', 1),
-      ...day('2026-09-21', 2),
-      ...day('2026-09-20', 0),
-      ...day('2026-09-19', 3),
-      ...day('2026-09-18', 3),
-    ];
-    expect(currentStreak(tasks, TODAY)).toBe(2);
-  });
-
-  it('breaks on yesterday even when today is unchecked', () => {
-    const tasks = [...day('2026-09-22', 0), ...day('2026-09-21', 0), ...day('2026-09-20', 3)];
-    expect(currentStreak(tasks, TODAY)).toBe(0);
-  });
-
-  it('does not care about the order the rows come in', () => {
-    const tasks = [...day('2026-09-20', 1), ...day('2026-09-22', 1), ...day('2026-09-21', 1)].reverse();
-    expect(currentStreak(tasks, TODAY)).toBe(3);
-  });
-
-  it('keeps going across a month boundary', () => {
-    const tasks = [...day('2026-10-02', 1), ...day('2026-10-01', 1), ...day('2026-09-30', 1), ...day('2026-09-29', 1)];
-    expect(currentStreak(tasks, '2026-10-02')).toBe(4);
-  });
-
-  it('keeps going across a year boundary', () => {
-    const tasks = [...day('2027-01-02', 1), ...day('2027-01-01', 1), ...day('2026-12-31', 1), ...day('2026-12-30', 1)];
-    expect(currentStreak(tasks, '2027-01-02')).toBe(4);
-  });
-
-  it('keeps going across the end of February, normal and leap year', () => {
-    const normal = [...day('2026-03-01', 1), ...day('2026-02-28', 1), ...day('2026-02-27', 1)];
-    expect(currentStreak(normal, '2026-03-01')).toBe(3);
-    const leap = [...day('2028-03-01', 1), ...day('2028-02-29', 1), ...day('2028-02-28', 1)];
-    expect(currentStreak(leap, '2028-03-01')).toBe(3);
-  });
-
-  it(`never looks further back than ${HISTORY_DAYS} days`, () => {
-    // One fulfilled day for each of the last 100 days: only 90 can count.
-    const tasks = Array.from({ length: 100 }, (_, i) => {
-      const date = new Date(Date.UTC(2026, 8, 22 - i)).toISOString().slice(0, 10);
-      return { task_date: date, completed: true };
-    });
-    expect(currentStreak(tasks, TODAY)).toBe(HISTORY_DAYS);
-  });
-
-  it(`ignores a fulfilled day older than ${HISTORY_DAYS} days even after a gap`, () => {
-    // 2026-06-24 is 90 days before today, just outside the window.
-    const tasks = [...day('2026-09-22', 1), ...day('2026-06-24', 3)];
-    expect(currentStreak(tasks, TODAY)).toBe(1);
+  it('has no 90-day limit', () => {
+    expect(streakStats(run('2026-09-22', 120), TODAY)).toEqual({ current: 120, best: 120, fulfilledDays: 120 });
   });
 
   it('ignores tasks dated after today', () => {
-    const tasks = [...day('2026-09-23', 3), ...day('2026-09-22', 1)];
-    expect(currentStreak(tasks, TODAY)).toBe(1);
+    const tasks = [...day('2026-09-23', 3), ...run('2026-09-22', 2)];
+    expect(streakStats(tasks, TODAY)).toEqual({ current: 2, best: 2, fulfilledDays: 2 });
+  });
+
+  it('does not care about the order the rows come in', () => {
+    const tasks = [...day('2026-09-20', 1), ...day('2026-09-22', 1), ...day('2026-09-21', 0)].reverse();
+    expect(streakStats(tasks, TODAY)).toEqual({ current: 1, best: 1, fulfilledDays: 2 });
   });
 
   it('throws on an invalid today', () => {
-    expect(() => currentStreak([], '2026-02-31')).toThrow();
+    expect(() => streakStats([], '2026-02-31')).toThrow();
   });
 });
 
-describe('lastDays', () => {
-  it(`always returns ${GRID_DAYS} days, oldest first, ending today`, () => {
-    const grid = lastDays([], TODAY);
-    expect(grid).toHaveLength(GRID_DAYS);
-    expect(grid[0].date).toBe('2026-08-24');
-    expect(grid[GRID_DAYS - 1].date).toBe(TODAY);
+describe('monthCalendar', () => {
+  const dates = (weeks: { date: string }[][]) => weeks.map((week) => week.map((d) => d.date));
+
+  it('lays out September 2026 (starts on Tuesday) in full Monday-first weeks', () => {
+    const { month, weeks } = monthCalendar([], '2026-09', TODAY);
+
+    expect(month).toBe('2026-09');
+    expect(weeks).toHaveLength(5);
+    expect(weeks.every((week) => week.length === 7)).toBe(true);
+    // Monday Aug 31 fills the first square; Sunday Oct 4 closes the last week.
+    expect(weeks[0][0]).toMatchObject({ date: '2026-08-31', day: 31, inMonth: false });
+    expect(weeks[0][1]).toMatchObject({ date: '2026-09-01', day: 1, inMonth: true });
+    expect(weeks[4][6]).toMatchObject({ date: '2026-10-04', day: 4, inMonth: false });
+    expect(weeks.flat().filter((d) => d.inMonth)).toHaveLength(30);
   });
 
-  it('with no data every day is a day without tasks', () => {
-    expect(lastDays([], TODAY).every((d) => d.total === 0 && d.done === 0)).toBe(true);
-  });
+  it('a month that starts on Sunday: February 2026 needs 5 weeks, the first with 6 days of January', () => {
+    const { weeks } = monthCalendar([], '2026-02', '2026-02-10');
 
-  it('tells apart a day without tasks from a day with 0 checked', () => {
-    const grid = lastDays(day('2026-09-21', 0), TODAY);
-    expect(grid[GRID_DAYS - 2]).toEqual({ date: '2026-09-21', total: 3, done: 0 });
-    expect(grid[GRID_DAYS - 1]).toEqual({ date: TODAY, total: 0, done: 0 });
-  });
-
-  it('counts how many tasks were checked each day (0 to 3)', () => {
-    const tasks = [...day('2026-09-19', 0), ...day('2026-09-20', 1), ...day('2026-09-21', 2), ...day('2026-09-22', 3)];
-    expect(lastDays(tasks, TODAY).slice(-4).map((d) => d.done)).toEqual([0, 1, 2, 3]);
-  });
-
-  it('leaves out days before the window and after today', () => {
-    const tasks = [...day('2026-08-23', 3), ...day('2026-09-23', 3)];
-    expect(lastDays(tasks, TODAY).every((d) => d.total === 0)).toBe(true);
-  });
-
-  it('lists every date correctly across a month boundary', () => {
-    const grid = lastDays(day('2026-09-30', 2), '2026-10-05', 7);
-    expect(grid.map((d) => d.date)).toEqual([
-      '2026-09-29', '2026-09-30', '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04', '2026-10-05',
+    expect(weeks).toHaveLength(5);
+    expect(dates(weeks)[0]).toEqual([
+      '2026-01-26', '2026-01-27', '2026-01-28', '2026-01-29', '2026-01-30', '2026-01-31', '2026-02-01',
     ]);
-    expect(grid[1]).toEqual({ date: '2026-09-30', total: 3, done: 2 });
+    expect(weeks.flat().filter((d) => d.inMonth)).toHaveLength(28);
   });
 
-  it('lists every date correctly across a year boundary', () => {
-    const grid = lastDays(day('2026-12-31', 1), '2027-01-02', 4);
-    expect(grid.map((d) => d.date)).toEqual(['2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02']);
-    expect(grid[1].done).toBe(1);
+  it('a month that starts on Monday: June 2026 starts with day 1 in the first square', () => {
+    const { weeks } = monthCalendar([], '2026-06', TODAY);
+
+    expect(weeks[0][0]).toMatchObject({ date: '2026-06-01', inMonth: true });
+    expect(weeks).toHaveLength(5);
   });
 
-  it(`starts ${GRID_DAYS - 1} days back across a year boundary`, () => {
-    const grid = lastDays([], '2027-01-10');
-    expect(grid[0].date).toBe('2026-12-12');
-    expect(grid[GRID_DAYS - 1].date).toBe('2027-01-10');
+  it('February in a leap year has 29 days, and a February that fits exactly takes 4 weeks', () => {
+    expect(monthCalendar([], '2028-02', TODAY).weeks.flat().filter((d) => d.inMonth)).toHaveLength(29);
+    // February 2027 starts on Monday and has 28 days: exactly 4 weeks.
+    expect(monthCalendar([], '2027-02', TODAY).weeks).toHaveLength(4);
+  });
+
+  it('a month that needs 6 weeks: August 2026 (starts on Saturday, 31 days)', () => {
+    expect(monthCalendar([], '2026-08', TODAY).weeks).toHaveLength(6);
+  });
+
+  it('carries each day\'s tasks: none, 0, 1, 2 or 3 checked', () => {
+    const tasks = [...day('2026-09-01', 0), ...day('2026-09-02', 1), ...day('2026-09-03', 2), ...day('2026-09-04', 3)];
+    const days = monthCalendar(tasks, '2026-09', TODAY).weeks.flat();
+    const pick = (date: string) => days.find((d) => d.date === date)!;
+
+    expect(pick('2026-09-05')).toMatchObject({ total: 0, done: 0 });
+    expect(pick('2026-09-01')).toMatchObject({ total: 3, done: 0 });
+    expect(pick('2026-09-02')).toMatchObject({ total: 3, done: 1 });
+    expect(pick('2026-09-03')).toMatchObject({ total: 3, done: 2 });
+    expect(pick('2026-09-04')).toMatchObject({ total: 3, done: 3 });
+  });
+
+  it('marks today, and every day after it as future', () => {
+    const days = monthCalendar([], '2026-09', TODAY).weeks.flat();
+
+    expect(days.filter((d) => d.isToday).map((d) => d.date)).toEqual([TODAY]);
+    expect(days.find((d) => d.date === '2026-09-21')?.isFuture).toBe(false);
+    expect(days.find((d) => d.date === '2026-09-23')?.isFuture).toBe(true);
+  });
+
+  it('a past month has no today and no future days', () => {
+    const days = monthCalendar([], '2026-08', TODAY).weeks.flat().filter((d) => d.inMonth);
+
+    expect(days.some((d) => d.isToday || d.isFuture)).toBe(false);
+  });
+
+  it('works across a year: January 2027 starts on Friday', () => {
+    const { weeks } = monthCalendar([], '2027-01', '2027-01-15');
+
+    expect(weeks[0][4]).toMatchObject({ date: '2027-01-01', inMonth: true });
+    expect(weeks[0][0]).toMatchObject({ date: '2026-12-28', inMonth: false });
+  });
+
+  it('throws on an invalid month or today', () => {
+    expect(() => monthCalendar([], '2026-13', TODAY)).toThrow();
+    expect(() => monthCalendar([], '2026-09', '2026-02-31')).toThrow();
   });
 });
 
-describe('completionRate', () => {
-  it('is null (no data) instead of 0% when there are no tasks', () => {
-    expect(completionRate([], TODAY)).toBeNull();
+describe('earliestMonth', () => {
+  it('is null with no tasks', () => {
+    expect(earliestMonth([], TODAY)).toBeNull();
   });
 
-  it('is 0 when there are tasks but none are checked', () => {
-    expect(completionRate(day('2026-09-21', 0), TODAY)).toBe(0);
+  it('is the month of the oldest task, in any order', () => {
+    const tasks = [...day('2026-09-20', 1), ...day('2025-11-03', 0), ...day('2026-01-15', 2)];
+    expect(earliestMonth(tasks, TODAY)).toBe('2025-11');
   });
 
-  it('is checked ÷ total × 100 over the window, rounded', () => {
-    // 3 + 1 + 0 checked out of 9 → 44.4…%
-    const tasks = [...day('2026-09-20', 3), ...day('2026-09-21', 1), ...day('2026-09-22', 0)];
-    expect(completionRate(tasks, TODAY)).toBe(44);
+  it('ignores tasks after today and malformed dates', () => {
+    const tasks = [...day('2026-10-01', 1), { task_date: '', completed: true }, ...day('2026-09-10', 0)];
+    expect(earliestMonth(tasks, TODAY)).toBe('2026-09');
+  });
+});
+
+describe('chooseMonth', () => {
+  const FIRST = '2026-06';
+  const CURRENT = '2026-09';
+
+  it('shows a valid month between the first and the current one as asked', () => {
+    expect(chooseMonth('2026-07', FIRST, CURRENT)).toBe('2026-07');
+    expect(chooseMonth(FIRST, FIRST, CURRENT)).toBe(FIRST);
+    expect(chooseMonth(CURRENT, FIRST, CURRENT)).toBe(CURRENT);
   });
 
-  it('includes today', () => {
-    expect(completionRate(day(TODAY, 2), TODAY)).toBe(67);
+  it('shows the first month for a month before it', () => {
+    expect(chooseMonth('2025-12', FIRST, CURRENT)).toBe(FIRST);
   });
 
-  it('days without tasks do not count', () => {
-    const tasks = [...day('2026-09-01', 3), ...day('2026-09-22', 3)];
-    expect(completionRate(tasks, TODAY)).toBe(100);
+  it('shows the current month for a future month', () => {
+    expect(chooseMonth('2026-10', FIRST, CURRENT)).toBe(CURRENT);
+    expect(chooseMonth('2030-01', FIRST, CURRENT)).toBe(CURRENT);
   });
 
-  it(`ignores tasks from ${GRID_DAYS + 1} days ago and after today`, () => {
-    // 2026-08-23 is 30 days before today: the first day outside the window.
-    const tasks = [...day('2026-08-23', 0), ...day('2026-08-24', 3), ...day('2026-09-23', 0)];
-    expect(completionRate(tasks, TODAY)).toBe(100);
-  });
-
-  it('is null when all tasks are older than the window', () => {
-    expect(completionRate(day('2026-08-01', 3), TODAY)).toBeNull();
-  });
-
-  it('covers a window that crosses a year boundary', () => {
-    const tasks = [...day('2026-12-15', 3), ...day('2027-01-05', 0), ...day('2026-12-01', 0)];
-    // 2026-12-01 is outside the 30 days ending 2027-01-10; the other two days count.
-    expect(completionRate(tasks, '2027-01-10')).toBe(50);
+  it.each([
+    ['nothing', undefined],
+    ['an empty text', ''],
+    ['a month that does not exist', '2026-13'],
+    ['a date instead of a month', '2026-07-01'],
+    ['a word', 'julio'],
+    ['a repeated parameter (a list)', ['2026-07', '2026-08']],
+  ])('shows the current month for %s', (_label, requested) => {
+    expect(chooseMonth(requested, FIRST, CURRENT)).toBe(CURRENT);
   });
 });
 
 describe('buildProgress', () => {
-  it('with no data: streak 0, a grid of empty days, and no completion figure', () => {
-    const progress = buildProgress([], TODAY);
-    expect(progress.streak).toBe(0);
-    expect(progress.grid).toHaveLength(GRID_DAYS);
-    expect(progress.grid.every((d) => d.total === 0)).toBe(true);
-    expect(progress.completion).toBeNull();
+  const tasks = [...run('2026-09-22', 3), ...day('2026-07-15', 1)];
+
+  it('is null with no tasks, so the screen shows its friendly message', () => {
+    expect(buildProgress([], TODAY, undefined)).toBeNull();
   });
 
-  it('puts the three results together', () => {
-    const tasks = [...day('2026-09-22', 0), ...day('2026-09-21', 2), ...day('2026-09-20', 1)];
-    const progress = buildProgress(tasks, TODAY);
-    expect(progress.streak).toBe(2);
-    expect(progress.grid.slice(-3).map((d) => d.done)).toEqual([1, 2, 0]);
-    expect(progress.completion).toBe(33);
+  it('shows the current month by default, with the whole-history numbers', () => {
+    const data = buildProgress(tasks, TODAY, undefined)!;
+
+    expect(data.calendar.month).toBe('2026-09');
+    // The days without tasks between Jul 15 and Sep 20 are skipped, so Jul 15 joins the streak.
+    expect(data.stats).toEqual({ current: 4, best: 4, fulfilledDays: 4 });
+  });
+
+  it('on the current month: the back arrow goes to the previous month, and there is no forward arrow', () => {
+    const data = buildProgress(tasks, TODAY, undefined)!;
+
+    expect(data.prevMonth).toBe('2026-08');
+    expect(data.nextMonth).toBeNull();
+  });
+
+  it('on the first month with tasks: there is no back arrow', () => {
+    const data = buildProgress(tasks, TODAY, '2026-07')!;
+
+    expect(data.calendar.month).toBe('2026-07');
+    expect(data.prevMonth).toBeNull();
+    expect(data.nextMonth).toBe('2026-08');
+  });
+
+  it('in between: both arrows, and the numbers stay the whole-history ones', () => {
+    const data = buildProgress(tasks, TODAY, '2026-08')!;
+
+    expect(data.prevMonth).toBe('2026-07');
+    expect(data.nextMonth).toBe('2026-09');
+    expect(data.stats.fulfilledDays).toBe(4);
+  });
+
+  it('when the only month with tasks is the current one: no arrows at all', () => {
+    const data = buildProgress(run('2026-09-22', 2), TODAY, undefined)!;
+
+    expect(data.prevMonth).toBeNull();
+    expect(data.nextMonth).toBeNull();
+  });
+
+  it('keeps an asked month in range: before the first shows the first, a future one the current', () => {
+    expect(buildProgress(tasks, TODAY, '2025-01')!.calendar.month).toBe('2026-07');
+    expect(buildProgress(tasks, TODAY, '2027-01')!.calendar.month).toBe('2026-09');
+  });
+
+  it('works across a year: on January, the back arrow goes to December of the year before', () => {
+    const data = buildProgress([...run('2027-01-05', 10)], '2027-01-05', undefined)!;
+
+    expect(data.calendar.month).toBe('2027-01');
+    expect(data.prevMonth).toBe('2026-12');
   });
 });
+
