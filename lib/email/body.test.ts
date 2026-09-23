@@ -8,6 +8,7 @@ const TASKS = [
   'Anota tres logros concretos que ya conseguiste este año.',
 ];
 const LINE = 'Marca tus tareas en https://yofuturo.rodrigovillegasvilla.com/dashboard';
+const SIG = '— Tu yo futuro';
 
 // Every test starts with SITE_URL unset (empty), so the default address is used unless a
 // test sets it on purpose.
@@ -19,9 +20,9 @@ afterEach(() => {
 });
 
 describe('buildEmailText — with tasks', () => {
-  it('adds the separator, the title, the 3 tasks numbered and the dashboard line, in plain text', () => {
+  it('signs the message, then adds the separator, the title, the 3 tasks numbered and the dashboard line', () => {
     expect(buildEmailText(MESSAGE, TASKS)).toBe(
-      `${MESSAGE}\n\n—\n\nTus tareas de hoy:\n\n` +
+      `${MESSAGE}\n\n${SIG}\n\n· · ·\n\nTus tareas de hoy:\n\n` +
         `1. ${TASKS[0]}\n2. ${TASKS[1]}\n3. ${TASKS[2]}\n\n${LINE}`
     );
   });
@@ -43,14 +44,29 @@ describe('buildEmailText — with tasks', () => {
     expect(text).not.toMatch(/[*_#`[\]()]/);
   });
 
-  it('puts one blank line before the separator even if the message ends with line breaks', () => {
-    expect(buildEmailText(`${MESSAGE}\n\n\n`, TASKS)).toContain(`${MESSAGE}\n\n—\n\nTus tareas de hoy:`);
+  it('puts one blank line before the signature even if the message ends with line breaks', () => {
+    expect(buildEmailText(`${MESSAGE}\n\n\n`, TASKS)).toContain(`${MESSAGE}\n\n${SIG}\n\n· · ·\n\nTus tareas de hoy:`);
+  });
+
+  it('signs right after the message and before the tasks, never with two dashes in a row', () => {
+    const text = buildEmailText(MESSAGE, TASKS);
+
+    expect(text.indexOf(SIG)).toBeGreaterThan(text.indexOf(MESSAGE));
+    expect(text.indexOf(SIG)).toBeLessThan(text.indexOf('Tus tareas de hoy:'));
+    expect(text.split(SIG).length - 1).toBe(1);
+    expect(text).not.toMatch(/—\s*\n\s*—/);
+  });
+
+  it('with an empty message: no signature, just the tasks and the link', () => {
+    expect(buildEmailText('', TASKS)).toBe(
+      `· · ·\n\nTus tareas de hoy:\n\n1. ${TASKS[0]}\n2. ${TASKS[1]}\n3. ${TASKS[2]}\n\n${LINE}`
+    );
   });
 
   it('keeps a message with its own line breaks intact', () => {
     const multi = 'Primera línea.\n\nSegundo párrafo.\nTercera línea.';
 
-    expect(buildEmailText(multi, TASKS).startsWith(`${multi}\n\n—`)).toBe(true);
+    expect(buildEmailText(multi, TASKS).startsWith(`${multi}\n\n${SIG}`)).toBe(true);
   });
 
   it('folds line breaks inside a task into spaces, so each task stays on one line', () => {
@@ -66,7 +82,7 @@ describe('buildEmailText — with tasks', () => {
   });
 });
 
-describe('buildEmailText — without tasks it is the message plus the dashboard line', () => {
+describe('buildEmailText — without tasks it is the signed message plus the dashboard line', () => {
   it.each([
     ['null', null],
     ['undefined', undefined],
@@ -74,13 +90,14 @@ describe('buildEmailText — without tasks it is the message plus the dashboard 
     ['a list of only blank entries', ['', '   ', '\n']],
     ['something that is not a list', 'Escribe algo.' as unknown as string[]],
   ])('with %s', (_label, tasks) => {
-    expect(buildEmailText(MESSAGE, tasks)).toBe(`${MESSAGE}\n\n${LINE}`);
+    expect(buildEmailText(MESSAGE, tasks)).toBe(`${MESSAGE}\n\n${SIG}\n\n${LINE}`);
   });
 
-  it('has no separator and no task title', () => {
+  it('has the signature but no separator and no task title', () => {
     const text = buildEmailText(MESSAGE, null);
 
-    expect(text).not.toContain('—');
+    expect(text).toContain(SIG);
+    expect(text).not.toContain('· · ·');
     expect(text).not.toContain('Tus tareas de hoy:');
   });
 
@@ -92,18 +109,18 @@ describe('buildEmailText — without tasks it is the message plus the dashboard 
     ['a message that already contains the separator and the title', 'Hola\n\n—\n\nTus tareas de hoy:\n\n1. algo'],
   ])('keeps the message character for character for a message with %s', (_label, message) => {
     for (const noTasks of [null, undefined, []] as const) {
-      expect(buildEmailText(message, noTasks as string[] | null)).toBe(`${message}\n\n${LINE}`);
+      expect(buildEmailText(message, noTasks as string[] | null)).toBe(`${message}\n\n${SIG}\n\n${LINE}`);
     }
   });
 
-  it('drops trailing whitespace of the message so there is exactly one blank line before the link', () => {
-    expect(buildEmailText(`${MESSAGE}\n\n  `, null)).toBe(`${MESSAGE}\n\n${LINE}`);
+  it('drops trailing whitespace of the message so there is exactly one blank line before the signature', () => {
+    expect(buildEmailText(`${MESSAGE}\n\n  `, null)).toBe(`${MESSAGE}\n\n${SIG}\n\n${LINE}`);
   });
 
   it.each([
     ['an empty message', ''],
     ['only whitespace', ' \n\t '],
-  ])('with %s it is only the dashboard line', (_label, message) => {
+  ])('with %s it is only the dashboard line (no signature under nothing)', (_label, message) => {
     expect(buildEmailText(message, null)).toBe(LINE);
   });
 });
@@ -188,7 +205,7 @@ describe('buildEmailText — never throws', () => {
     }
   });
 
-  it('returns the message plus the line if reading the tasks itself blows up', () => {
+  it('returns the signed message plus the line if reading the tasks itself blows up', () => {
     const hostile = new Proxy([TASKS[0]], {
       get() {
         throw new Error('boom');
@@ -196,16 +213,16 @@ describe('buildEmailText — never throws', () => {
     });
 
     expect(() => buildEmailText(MESSAGE, hostile)).not.toThrow();
-    expect(buildEmailText(MESSAGE, hostile)).toBe(`${MESSAGE}\n\n${LINE}`);
+    expect(buildEmailText(MESSAGE, hostile)).toBe(`${MESSAGE}\n\n${SIG}\n\n${LINE}`);
   });
 
-  it('returns the message plus the line if a task throws when converted to text', () => {
+  it('returns the signed message plus the line if a task throws when converted to text', () => {
     const hostileTask = {
       toString() {
         throw new Error('boom');
       },
     };
 
-    expect(buildEmailText(MESSAGE, [hostileTask as unknown as string])).toBe(`${MESSAGE}\n\n${LINE}`);
+    expect(buildEmailText(MESSAGE, [hostileTask as unknown as string])).toBe(`${MESSAGE}\n\n${SIG}\n\n${LINE}`);
   });
 });

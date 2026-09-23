@@ -9,6 +9,7 @@ export interface SendEmailResult {
 export async function sendDailyEmail(
   toEmail: string,
   messageContent: string,
+  subject: string,
   client: Resend = new Resend(process.env.RESEND_API_KEY)
 ): Promise<SendEmailResult> {
   let response: Awaited<ReturnType<Resend['emails']['send']>>;
@@ -17,7 +18,7 @@ export async function sendDailyEmail(
     response = await client.emails.send({
       from: process.env.RESEND_FROM_ADDRESS || 'Yo Futuro <hola@yofuturo.app>',
       to: toEmail,
-      subject: 'Tu mensaje de hoy de tu yo futuro',
+      subject,
       text: messageContent,
     });
   } catch (err) {

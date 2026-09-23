@@ -4,6 +4,7 @@ import { isSameLocalDay, summarizeDueProfiles } from '@/lib/messages/delivery';
 import { generateMessage } from '@/lib/messages/generate';
 import { sendDailyEmail } from '@/lib/email/send';
 import { buildEmailText } from '@/lib/email/body';
+import { dailySubject } from '@/lib/email/subject';
 import { prepareDailyTasks } from '@/lib/tasks/daily';
 import { saveDailyTasks } from '@/lib/tasks/save';
 import { prepareDailyInsight } from '@/lib/insights/daily';
@@ -181,7 +182,11 @@ async function processUser(
   // tarda más de 20 s. Con null, el correo sale exactamente como antes de las tareas.
   const dailyTasks = await prepareDailyTasks(supabase, profile, (goals as Goal[]) ?? [], content, now);
 
-  const emailResult = await sendDailyEmail(email, buildEmailText(content, dailyTasks?.tasks ?? null));
+  const emailResult = await sendDailyEmail(
+    email,
+    buildEmailText(content, dailyTasks?.tasks ?? null),
+    dailySubject(now, profile.timezone)
+  );
 
   await supabase
     .from('messages')

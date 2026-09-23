@@ -9,9 +9,22 @@ describe('sendDailyEmail', () => {
       },
     } as any;
 
-    const result = await sendDailyEmail('ana@example.com', 'Sigue adelante.', fakeClient);
+    const result = await sendDailyEmail('ana@example.com', 'Sigue adelante.', 'Tu mensaje de hoy · miércoles 23 de septiembre', fakeClient);
 
     expect(result).toEqual({ providerId: 'email-123', status: 'sent', error: null });
+  });
+
+  it('sends the given subject and the body as plain text only (no HTML)', async () => {
+    const send = vi.fn().mockResolvedValue({ data: { id: 'email-123' }, error: null });
+    const fakeClient = { emails: { send } } as never;
+
+    await sendDailyEmail('ana@example.com', 'Sigue adelante.', 'Tu mensaje de hoy · miércoles 23 de septiembre', fakeClient);
+
+    const payload = send.mock.calls[0][0];
+    expect(payload.to).toBe('ana@example.com');
+    expect(payload.subject).toBe('Tu mensaje de hoy · miércoles 23 de septiembre');
+    expect(payload.text).toBe('Sigue adelante.');
+    expect(payload.html).toBeUndefined();
   });
 
   it('returns failed status and error message on failure', async () => {
@@ -21,7 +34,7 @@ describe('sendDailyEmail', () => {
       },
     } as any;
 
-    const result = await sendDailyEmail('ana@example.com', 'Sigue adelante.', fakeClient);
+    const result = await sendDailyEmail('ana@example.com', 'Sigue adelante.', 'Tu mensaje de hoy · miércoles 23 de septiembre', fakeClient);
 
     expect(result).toEqual({ providerId: null, status: 'failed', error: 'invalid domain' });
   });
@@ -33,7 +46,7 @@ describe('sendDailyEmail', () => {
       },
     } as any;
 
-    const result = await sendDailyEmail('ana@example.com', 'Sigue adelante.', fakeClient);
+    const result = await sendDailyEmail('ana@example.com', 'Sigue adelante.', 'Tu mensaje de hoy · miércoles 23 de septiembre', fakeClient);
 
     expect(result).toEqual({
       providerId: null,
