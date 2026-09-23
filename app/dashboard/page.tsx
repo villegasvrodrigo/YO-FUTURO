@@ -5,7 +5,7 @@ import type { DailyTask } from '@/lib/types';
 import { BottomNav } from '@/app/_components/BottomNav';
 import { CompletionRing } from './CompletionRing';
 import { TaskList, TaskListHint, TasksProvider } from './TaskList';
-import { DailyInsight } from './DailyInsight';
+import { DailyInsight, DailyInsightHint } from './DailyInsight';
 import { getLatestInsight } from '@/lib/insights/latest';
 
 export default async function DashboardPage() {
@@ -110,8 +110,11 @@ export default async function DashboardPage() {
             </section>
 
             <section className="mt-8">
-              <h2 className="mb-3 font-serif text-2xl text-parchment">Daily insight</h2>
-              <DailyInsight insight={latestInsight} />
+              <h2 className="font-serif text-2xl text-parchment">Daily insight</h2>
+              <DailyInsightHint insight={latestInsight} />
+              <div className="mt-3">
+                <DailyInsight insight={latestInsight} />
+              </div>
             </section>
 
             <nav className="mt-8 flex gap-5 font-mono text-xs">

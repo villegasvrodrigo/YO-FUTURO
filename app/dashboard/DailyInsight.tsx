@@ -11,6 +11,19 @@ export function shortInsightDate(date: string): string {
   return match && month ? `${Number(match[3])} ${month}` : '';
 }
 
+/** The short explanation under the "Daily insight" title. Only when there is an insight. */
+export function DailyInsightHint({ insight }: { insight: LatestInsight | null }) {
+  if (!insight) return null;
+  return (
+    <p className="mt-1 text-sm text-parchment/70">
+      <span aria-hidden="true" className="mr-1.5 text-brass">
+        →
+      </span>
+      Una observación de tu yo futuro sobre lo que vas aprendiendo.
+    </p>
+  );
+}
+
 /**
  * The "Daily insight" card of the dashboard: the user's most recent insight with its date
  * (it may be from an earlier day, and the date makes that clear), or a friendly message
