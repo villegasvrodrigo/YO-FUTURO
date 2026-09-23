@@ -17,6 +17,8 @@ import {
 } from '@/lib/onboarding/progress';
 import { ONBOARDING_GREETING } from '@/lib/onboarding/script';
 import { confirmOnboarding } from '@/lib/onboarding/confirmSave';
+import { initialDeliveryHour } from '@/lib/onboarding/deliveryHour';
+import { HOUR_OPTIONS } from '@/lib/messages/hourLabel';
 import {
   fetchJsonWithTimeout,
   EXTRACT_TIMEOUT_MS,
@@ -319,7 +321,7 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
   const [goals, setGoals] = useState<string[]>(
     extracted.goals && extracted.goals.length > 0 ? extracted.goals : ['']
   );
-  const [deliveryHour, setDeliveryHour] = useState(extracted.deliveryHour ?? 8);
+  const [deliveryHour, setDeliveryHour] = useState(() => initialDeliveryHour(extracted.deliveryHour));
   const [timezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -492,16 +494,21 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
             </button>
           </div>
           <div>
-            <label htmlFor="deliveryHour" className={labelClass}>Hora de entrega (0–23)</label>
-            <input
+            <label htmlFor="deliveryHour" className={labelClass}>Hora de entrega</label>
+            {/* A list instead of a number box: it can never be left empty (an empty
+                number box used to be saved as 0, midnight). Same list as /perfil. */}
+            <select
               id="deliveryHour"
-              type="number"
-              min={0}
-              max={23}
               value={deliveryHour}
               onChange={(e) => setDeliveryHour(Number(e.target.value))}
               className={fieldClass}
-            />
+            >
+              {HOUR_OPTIONS.map((option) => (
+                <option key={option.value} className="bg-dusk-2 text-parchment" value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
             <p className="mt-1.5 font-mono text-xs text-mist">
               Zona horaria detectada: <span className="text-brass">{timezone}</span>
             </p>

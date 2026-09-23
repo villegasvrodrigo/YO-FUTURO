@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
 import { validateProfileStep, validateDeliveryHour } from '@/lib/onboarding/validate';
-import { HOUR_OPTIONS, hourLabel } from '@/lib/perfil/hourLabel';
+import { HOUR_OPTIONS, hourLabel } from '@/lib/messages/hourLabel';
 import { SAVE_PROFILE_FAILED, updateProfile } from '@/lib/perfil/updateProfile';
 import type { Profile, Goal, GoalStatus, FocusArea, Tone } from '@/lib/types';
 
