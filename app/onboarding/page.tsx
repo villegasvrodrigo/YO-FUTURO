@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
 import { validateProfileStep, validateGoals, validateDeliveryHour } from '@/lib/onboarding/validate';
@@ -18,6 +18,7 @@ import {
 import { ONBOARDING_GREETING } from '@/lib/onboarding/script';
 import { confirmOnboarding } from '@/lib/onboarding/confirmSave';
 import { ResultCard } from './ResultCard';
+import { AnswerBox } from './AnswerBox';
 import { initialDeliveryHour } from '@/lib/onboarding/deliveryHour';
 import { HOUR_OPTIONS } from '@/lib/messages/hourLabel';
 import {
@@ -49,6 +50,16 @@ export default function OnboardingPage() {
   const [loaded, setLoaded] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [showSlowWarning, setShowSlowWarning] = useState(false);
+  // Bottom of the conversation screen (just under the answer box).
+  const conversationEndRef = useRef<HTMLDivElement>(null);
+
+  // Keep the latest message and the answer box in view: scroll down when the user sends,
+  // when the reply arrives and when a saved conversation is resumed. Smooth, unless the
+  // user asked their system for less motion.
+  useEffect(() => {
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    conversationEndRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'end' });
+  }, [transcript.length, sending]);
 
   // Resume a previously-saved conversation on load, so a refresh, a closed tab, or a
   // return the next day picks up exactly where the user left off instead of restarting.
@@ -279,26 +290,7 @@ export default function OnboardingPage() {
             )}
           </div>
         )}
-        <div className="flex gap-2.5">
-          <input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') sendMessage();
-            }}
-            placeholder="Escribe tu respuesta..."
-            disabled={sending}
-            className={fieldClass}
-          />
-          <button
-            type="button"
-            onClick={sendMessage}
-            disabled={sending}
-            className="shrink-0 rounded-lg bg-brass px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90 disabled:opacity-50"
-          >
-            Enviar
-          </button>
-        </div>
+        <AnswerBox value={input} onChange={setInput} onSend={sendMessage} sending={sending} />
         <button
           type="button"
           onClick={() => finalizeOnboarding(transcript, extracted)}
@@ -307,6 +299,7 @@ export default function OnboardingPage() {
         >
           Ya terminé, revisar mis datos
         </button>
+        <div ref={conversationEndRef} />
       </div>
     </main>
   );
