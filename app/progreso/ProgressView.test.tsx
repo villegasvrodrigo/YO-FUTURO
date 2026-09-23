@@ -29,15 +29,22 @@ describe('ProgressView (server render)', () => {
 
     expect(html).toContain('Racha actual');
     expect(html).toMatch(/>2<\/p>/);
-    expect(html).toContain('días');
+    expect(html).toContain('días seguidos');
     expect(html).toContain('33%');
     expect(count(html, 'role="img"')).toBe(GRID_DAYS);
   });
 
-  it('says "día" (singular) for a streak of 1', () => {
+  it('says "día seguido" (singular) for a streak of 1', () => {
     const html = renderToString(<ProgressView progress={buildProgress(day(TODAY, 1), TODAY)} />);
     expect(html).toMatch(/>1<\/p>/);
-    expect(html).toContain('día<!-- --> seguidos');
+    expect(html).toContain('>día seguido<');
+    expect(html).not.toContain('seguidos');
+  });
+
+  it('says "días seguidos" (plural) for a streak of 0', () => {
+    const html = renderToString(<ProgressView progress={buildProgress(day(TODAY, 0), TODAY)} />);
+    expect(html).toMatch(/>0<\/p>/);
+    expect(html).toContain('>días seguidos<');
   });
 
   it('labels each dot with its date and how many tasks were checked, and marks today', () => {

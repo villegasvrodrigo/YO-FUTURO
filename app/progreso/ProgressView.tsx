@@ -56,7 +56,7 @@ export function ProgressView({ progress }: { progress: Progress | null }) {
               <section className="rounded border-t-2 border-brass-dim bg-dusk-2 px-6 py-6">
                 <h2 className="font-mono text-xs uppercase tracking-[0.1em] text-brass">Racha actual</h2>
                 <p className="mt-3 font-mono text-4xl font-semibold text-brass">{progress.streak}</p>
-                <p className="mt-1 text-sm text-mist">{progress.streak === 1 ? 'día' : 'días'} seguidos</p>
+                <p className="mt-1 text-sm text-mist">{progress.streak === 1 ? 'día seguido' : 'días seguidos'}</p>
               </section>
 
               <section className="rounded border-t-2 border-brass-dim bg-dusk-2 px-6 py-6">
