@@ -1,0 +1,16 @@
+<!--
+  RESPALDO. Copia de la plantilla que vive en el panel de Supabase:
+  Authentication → Email Templates → Confirm signup.
+  Se guarda aquí solo como respaldo: el original se edita en ese panel, no aquí.
+  Cambiar este archivo NO cambia el correo que reciben los usuarios.
+
+  Asunto: Confirma tu cuenta en Yo Futuro
+-->
+<div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; padding: 24px; color: #1a1a1a; line-height: 1.6;">
+  <p>Hola,</p>
+  <p>Gracias por crear tu cuenta en Yo Futuro. Para empezar a recibir los mensajes diarios de tu yo futuro, solo necesitas confirmar que este correo es tuyo.</p>
+  <p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email" style="background: #c0a26f; color: #1a1a1a; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Confirmar mi cuenta</a></p>
+  <p>Después de confirmar, te haremos unas preguntas para conocerte: tus metas, tus valores y quién quieres llegar a ser. Con eso escribimos tu primer mensaje.</p>
+  <p>Si tú no creaste esta cuenta, puedes ignorar este correo y no pasará nada.</p>
+  <p>Un abrazo,<br>El equipo de Yo Futuro</p>
+</div>
