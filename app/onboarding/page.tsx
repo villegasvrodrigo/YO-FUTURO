@@ -17,6 +17,7 @@ import {
 } from '@/lib/onboarding/progress';
 import { ONBOARDING_GREETING } from '@/lib/onboarding/script';
 import { confirmOnboarding } from '@/lib/onboarding/confirmSave';
+import { ResultCard } from './ResultCard';
 import { initialDeliveryHour } from '@/lib/onboarding/deliveryHour';
 import { HOUR_OPTIONS } from '@/lib/messages/hourLabel';
 import {
@@ -607,16 +608,5 @@ function ResultsScreen({
         </button>
       </div>
     </main>
-  );
-}
-
-function ResultCard({ title, content }: { title: string; content: string | null }) {
-  return (
-    <div className="rounded border-t-2 border-brass-dim bg-dusk-2 px-7 py-8">
-      <p className="mb-3 font-mono text-xs uppercase tracking-[0.08em] text-mist">{title}</p>
-      <p className="whitespace-pre-line font-serif text-lg italic leading-relaxed text-parchment">
-        {content?.trim() ? content : 'No pudimos generar esta sección — puedes continuar de todas formas.'}
-      </p>
-    </div>
   );
 }
