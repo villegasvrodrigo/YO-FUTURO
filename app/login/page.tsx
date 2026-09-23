@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
 import { translateLoginError } from '@/lib/auth/loginErrors';
+import { PrivacyLink } from '@/app/_components/PrivacyLink';
 
 export default function LoginPage() {
   return (
@@ -98,6 +99,9 @@ function LoginForm() {
         >
           ¿Olvidaste tu contraseña?
         </Link>
+        <footer className="mt-10 text-center">
+          <PrivacyLink />
+        </footer>
       </div>
     </main>
   );

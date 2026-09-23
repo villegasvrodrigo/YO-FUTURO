@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PrivacyLink } from '@/app/_components/PrivacyLink';
 
 export default function LandingPage() {
   return (
@@ -28,6 +29,9 @@ export default function LandingPage() {
             Entrar
           </Link>
         </nav>
+        <footer className="mt-16">
+          <PrivacyLink />
+        </footer>
       </div>
     </main>
   );

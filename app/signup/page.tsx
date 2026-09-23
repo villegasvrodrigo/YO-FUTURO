@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
+import { PrivacyLink } from '@/app/_components/PrivacyLink';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -96,6 +97,9 @@ export default function SignupPage() {
             {sending ? 'Creando cuenta…' : 'Crear cuenta'}
           </button>
         </form>
+        <footer className="mt-10 text-center">
+          <PrivacyLink />
+        </footer>
       </div>
     </main>
   );

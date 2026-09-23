@@ -1,4 +1,5 @@
-const PUBLIC_ROUTES = new Set(['/', '/login', '/signup', '/auth/confirm', '/login/recuperar']);
+// /privacidad is public: the privacy notice must be readable before creating an account.
+const PUBLIC_ROUTES = new Set(['/', '/login', '/signup', '/auth/confirm', '/login/recuperar', '/privacidad']);
 
 export function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.has(pathname)) return true;

@@ -117,7 +117,7 @@ export default async function DashboardPage() {
               </div>
             </section>
 
-            <nav className="mt-8 flex gap-5 font-mono text-xs">
+            <nav className="mt-8 flex flex-wrap gap-x-5 gap-y-3 font-mono text-xs">
               <a href="/historial" className="text-mist transition-colors hover:text-brass">
                 Ver historial
               </a>
@@ -131,6 +131,9 @@ export default async function DashboardPage() {
                 className="text-mist transition-colors hover:text-brass"
               >
                 Enviar opinión
+              </a>
+              <a href="/privacidad" className="text-mist transition-colors hover:text-brass">
+                Aviso de privacidad
               </a>
             </nav>
           </div>

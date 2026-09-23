@@ -23,6 +23,10 @@ describe('isPublicRoute', () => {
     expect(isPublicRoute('/login/recuperar')).toBe(true);
   });
 
+  it('treats the privacy notice as public (it must be readable without an account)', () => {
+    expect(isPublicRoute('/privacidad')).toBe(true);
+  });
+
   it('treats the "set new password" page as protected (requires the recovery session)', () => {
     expect(isPublicRoute('/auth/nueva-password')).toBe(false);
   });
@@ -40,6 +44,7 @@ describe('requiresCompletedOnboarding', () => {
     expect(requiresCompletedOnboarding('/')).toBe(false);
     expect(requiresCompletedOnboarding('/login')).toBe(false);
     expect(requiresCompletedOnboarding('/signup')).toBe(false);
+    expect(requiresCompletedOnboarding('/privacidad')).toBe(false);
   });
 
   it('does not require it on the onboarding page or its subroutes', () => {
