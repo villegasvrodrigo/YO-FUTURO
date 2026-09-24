@@ -19,6 +19,7 @@ import { confirmOnboarding } from '@/lib/onboarding/confirmSave';
 import { ResultCard } from './ResultCard';
 import { AnswerBox } from './AnswerBox';
 import { navigateTo } from '@/lib/browser/navigate';
+import { dismissKeyboard, scrollToTop } from '@/lib/browser/screen';
 import { initialDeliveryHour } from '@/lib/onboarding/deliveryHour';
 import { HOUR_OPTIONS } from '@/lib/messages/hourLabel';
 import {
@@ -165,6 +166,9 @@ export default function OnboardingPage() {
   // user cut it short with "Ya terminé") — extraction and synthesis are independent,
   // both need only the finished transcript, so they run in parallel.
   async function finalizeOnboarding(finalTranscript: ChatMessage[], baseExtracted: ExtractedProfile) {
+    // The conversation is over: close the phone keyboard now (the answer box kept its focus
+    // between messages). Left open, the first tap on the results screen only closed it.
+    dismissKeyboard();
     setSynthesizing(true);
     setSynthesisError(null);
     setShowSlowWarning(false);
@@ -320,6 +324,11 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const errorRef = useRef<HTMLParagraphElement>(null);
+
+  // Start this screen at its top, not wherever the previous one was scrolled to.
+  useEffect(() => {
+    scrollToTop();
+  }, []);
 
   // If the error is out of view anyway (a short phone screen), bring it in.
   useEffect(() => {
@@ -598,6 +607,11 @@ function ResultsScreen({
   extracted: ExtractedProfile;
   onContinue: () => void;
 }) {
+  // Start the results at their top, not where the conversation was scrolled to.
+  useEffect(() => {
+    scrollToTop();
+  }, []);
+
   return (
     <main className="flex flex-1 justify-center px-6 py-16">
       <div className="w-full max-w-xl">
