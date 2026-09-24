@@ -7,18 +7,14 @@ import { HOUR_OPTIONS, hourLabel } from '@/lib/messages/hourLabel';
 import { SAVE_PROFILE_FAILED, updateProfile } from '@/lib/perfil/updateProfile';
 import { DeliveryPauseSection } from './DeliveryPauseSection';
 import { deleteMyAccount } from '@/lib/perfil/deleteAccount';
+import { GOAL_STATUS_FAILED, saveGoalStatus } from '@/lib/perfil/goalStatus';
+import { GoalList } from './GoalList';
 import { navigateTo } from '@/lib/browser/navigate';
 import type { Profile, Goal, GoalStatus, FocusArea, Tone } from '@/lib/types';
 
 const fieldClass =
   'w-full rounded-lg border border-rule bg-dusk-2 px-3.5 py-2.5 text-[15px] text-parchment placeholder:text-mist focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass';
 const labelClass = 'mb-1.5 block text-sm font-medium text-parchment';
-
-const statusLabel: Record<GoalStatus, string> = {
-  active: 'activa',
-  achieved: 'lograda',
-  paused: 'pausada',
-};
 
 // Mismas opciones (y mismos valores) que ofrece el onboarding en su pantalla
 // de revisión — se mantienen en sincronía a propósito, ver ConfirmationScreen
@@ -46,6 +42,9 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
   const [values, setValues] = useState(profile.values);
   const [deliveryHour, setDeliveryHour] = useState(profile.delivery_hour_local);
   const [goalList, setGoalList] = useState(goals);
+  // The goal whose status is being saved (one at a time), and a failed save's message.
+  const [goalPendingId, setGoalPendingId] = useState<string | null>(null);
+  const [goalError, setGoalError] = useState<{ goalId: string; message: string } | null>(null);
   const [newGoal, setNewGoal] = useState('');
   // Result of "Guardar cambios", shown right under that button (the message box at the
   // top of the page is out of view when the button is tapped).
@@ -144,11 +143,16 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
   }
 
   async function setGoalStatus(goalId: string, status: GoalStatus) {
-    const supabase = createClient();
-    const { error } = await supabase.from('goals').update({ status }).eq('id', goalId);
-    if (!error) {
-      setGoalList(goalList.map((g) => (g.id === goalId ? { ...g, status } : g)));
+    if (goalPendingId) return;
+    setGoalError(null);
+    setGoalPendingId(goalId);
+    const saved = await saveGoalStatus(createClient(), goalId, status);
+    if (saved) {
+      setGoalList((list) => list.map((g) => (g.id === goalId ? { ...g, status } : g)));
+    } else {
+      setGoalError({ goalId, message: GOAL_STATUS_FAILED });
     }
+    setGoalPendingId(null);
   }
 
   async function logout() {
@@ -315,36 +319,7 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
 
         <section className="mt-8">
           <h2 className="mb-4 font-serif text-xl text-parchment">Tus metas</h2>
-          <ul className="mb-4 flex flex-col gap-2.5">
-            {goalList.map((goal) => (
-              <li
-                key={goal.id}
-                className="flex items-center justify-between gap-3 rounded-lg border border-rule bg-dusk-2 px-4 py-3"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-[15px] text-parchment">{goal.description}</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 font-mono text-[11px] uppercase tracking-wide ${
-                      goal.status === 'achieved'
-                        ? 'bg-sage/15 text-sage'
-                        : 'bg-rule text-mist'
-                    }`}
-                  >
-                    {statusLabel[goal.status]}
-                  </span>
-                </div>
-                {goal.status === 'active' && (
-                  <button
-                    type="button"
-                    onClick={() => setGoalStatus(goal.id, 'achieved')}
-                    className="shrink-0 font-mono text-xs text-brass transition-colors hover:text-parchment"
-                  >
-                    marcar lograda
-                  </button>
-                )}
-              </li>
-            ))}
-          </ul>
+          <GoalList goals={goalList} pendingId={goalPendingId} error={goalError} onSetStatus={setGoalStatus} />
           <div className="flex gap-2.5">
             <input
               value={newGoal}
