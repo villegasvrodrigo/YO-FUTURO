@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recorrido de beta Yo Futuro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ground: #f6f2ea;
+    --surface: #fffdf8;
+    --ink: #1f1d1a;
+    --muted: #6d675d;
+    --rule: #e2dacb;
+    --accent: #9a7236;
+    --accent-soft: #f0e4cc;
+    --test: #3e6b73;
+    --test-soft: #dcebed;
+    --risk: #a4432f;
+    --risk-soft: #f6ddd5;
+    --check: #9a7236;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #12141c;
+      --surface: #1b1e29;
+      --ink: #ede6d8;
+      --muted: #8d8c98;
+      --rule: #2c2f3d;
+      --accent: #c9a063;
+      --accent-soft: #3a3120;
+      --test: #8ec3cb;
+      --test-soft: #1d3035;
+      --risk: #e08b77;
+      --risk-soft: #3b221d;
+      --check: #c9a063;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #12141c;
+    --surface: #1b1e29;
+    --ink: #ede6d8;
+    --muted: #8d8c98;
+    --rule: #2c2f3d;
+    --accent: #c9a063;
+    --accent-soft: #3a3120;
+    --test: #8ec3cb;
+    --test-soft: #1d3035;
+    --risk: #e08b77;
+    --risk-soft: #3b221d;
+    --check: #c9a063;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .page {
+    max-width: 860px;
+    margin: 0 auto;
+    padding-inline: 20px;
+    padding-block: 40px 64px;
+  }
+  .eyebrow {
+    font-family: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 8px;
+  }
+  h1 {
+    font-family: "Instrument Serif", Georgia, "Times New Roman", serif;
+    font-weight: 400;
+    font-size: clamp(34px, 6vw, 48px);
+    line-height: 1.05;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .lede { color: var(--muted); max-width: 62ch; margin: 0 0 24px; }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 8px 16px;
+    align-items: center;
+    padding: 14px 16px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    background: var(--surface);
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .progress {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0 0 32px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .tag {
+    display: inline-block;
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    white-space: nowrap;
+    vertical-align: 1px;
+  }
+  .t-mine { background: var(--accent-soft); color: var(--accent); }
+  .t-test { background: var(--test-soft); color: var(--test); }
+  .t-risk { background: var(--risk-soft); color: var(--risk); }
+
+  section { margin-top: 36px; break-inside: auto; }
+  h2 {
+    font-family: "Instrument Serif", Georgia, serif;
+    font-weight: 400;
+    font-size: 26px;
+    margin: 0 0 4px;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  h2 .step {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+  }
+  .section-note { color: var(--muted); font-size: 13.5px; margin: 0 0 12px; max-width: 70ch; }
+
+  ol.checks { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
+  ol.checks > li {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--rule);
+    break-inside: avoid;
+  }
+  .box {
+    appearance: none;
+    width: 20px; height: 20px;
+    margin: 2px 0 0;
+    border: 1.5px solid var(--muted);
+    border-radius: 4px;
+    background: var(--surface);
+    cursor: pointer;
+    display: grid; place-content: center;
+  }
+  .box:checked { background: var(--check); border-color: var(--check); }
+  .box:checked::after {
+    content: ""; width: 10px; height: 6px;
+    border-left: 2px solid var(--surface); border-bottom: 2px solid var(--surface);
+    transform: rotate(-45deg) translate(1px, -1px);
+  }
+  .box:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .item-head { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: baseline; margin-bottom: 4px; }
+  .num {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 12px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .do { font-weight: 600; }
+  .expect { color: var(--ink); margin: 0; }
+  .expect::before {
+    content: "Debería: ";
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .warn { color: var(--risk); font-size: 13.5px; margin: 4px 0 0; }
+  .aside { color: var(--muted); font-size: 13.5px; margin: 4px 0 0; }
+  code {
+    font-family: "Geist Mono", ui-monospace, monospace;
+    font-size: 0.88em;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0 4px;
+    word-break: break-word;
+  }
+  li.done .do, li.done .expect { color: var(--muted); }
+
+  .callout {
+    border-left: 3px solid var(--risk);
+    background: var(--surface);
+    padding: 12px 16px;
+    margin-top: 16px;
+    font-size: 14px;
+    border-radius: 0 6px 6px 0;
+  }
+  .callout strong { color: var(--risk); }
+  .known { border-left-color: var(--accent); }
+  .known strong { color: var(--accent); }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .box { transition: background-color 120ms ease, border-color 120ms ease; }
+  }
+
+  @media print {
+    :root, :root[data-theme="dark"], :root:not([data-theme="light"]) {
+      --ground: #fff; --surface: #fff; --ink: #000; --muted: #555; --rule: #bbb;
+      --accent: #6b4b1c; --accent-soft: #fff; --test: #1f4c53; --test-soft: #fff;
+      --risk: #8a2b18; --risk-soft: #fff; --check: #000;
+      color-scheme: light;
+    }
+    body { font-size: 11.5px; }
+    .page { padding-block: 0; max-width: none; }
+    .progress { display: none; }
+    .tag { border: 1px solid currentColor; }
+    section { margin-top: 20px; }
+    h2 { break-after: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<main class="page">
+  <p class="eyebrow">Yo Futuro · beta</p>
+  <h1>Recorrido de beta</h1>
+  <p class="lede">
+    Recorre la app como una persona nueva, en el orden en que la usaría: desde la página
+    principal hasta varios días después. Cada punto dice qué hacer y qué debería pasar.
+    Prueba en el sitio publicado (tu dominio en Vercel), no en el servidor local.
+  </p>
+
+  <div class="legend" aria-label="Leyenda">
+    <span><span class="tag t-mine">Tu cuenta</span> se puede hacer con tu cuenta</span>
+    <span><span class="tag t-test">Cuenta de prueba</span> necesita la cuenta de prueba nueva</span>
+    <span><span class="tag t-risk">Riesgo</span> manda correos o borra cosas</span>
+  </div>
+  <p class="progress" id="progress" aria-live="polite"></p>
+
+  <div class="callout">
+    <strong>Antes de empezar.</strong> Para las partes 2 a 6 crea <em>una sola</em> cuenta de prueba, registrándote
+    de verdad con un correo tuyo que puedas abrir (por ejemplo, un alias con “+prueba” si tu correo lo acepta).
+    Esa cuenta recibirá correos diarios en cuanto termine el onboarding. Al final (parte 12) la borras con
+    “Eliminar cuenta”, y así también pruebas ese botón.
+  </div>
+
+  <section>
+    <h2><span class="step">1</span> Página principal, sin sesión</h2>
+    <p class="section-note">Ábrela en una ventana privada para no tener tu sesión abierta.</p>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c1" aria-labelledby="c1-t"><div>
+        <div class="item-head"><span class="num">1</span><span class="do" id="c1-t">Abre la página principal</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">“Cada día, tu yo futuro te escribe.”, los botones “Crear cuenta” y “Entrar”, y abajo el enlace “Aviso de privacidad”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c2" aria-labelledby="c2-t"><div>
+        <div class="item-head"><span class="num">2</span><span class="do" id="c2-t">Toca “Aviso de privacidad”</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Abre sin pedir sesión. Título grande sin dos puntos, secciones con dos puntos (“Qué guardo:”…), la lista de 4 servicios y el correo de contacto como enlace. Abajo, “← Volver al inicio”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c3" aria-labelledby="c3-t"><div>
+        <div class="item-head"><span class="num">3</span><span class="do" id="c3-t">Escribe a mano <code>/dashboard</code> en la dirección</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Te manda a la pantalla de “Entrar”. Sin sesión no se ve nada privado.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">2</span> Registro y confirmación de correo</h2>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c4" aria-labelledby="c4-t"><div>
+        <div class="item-head"><span class="num">4</span><span class="do" id="c4-t">En “Crear cuenta”, prueba una contraseña de 5 caracteres</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">No deja crear la cuenta: pide al menos 6 caracteres. No se manda ningún correo.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c5" aria-labelledby="c5-t"><div>
+        <div class="item-head"><span class="num">5</span><span class="do" id="c5-t">Crea la cuenta con tu correo de prueba y una contraseña válida</span><span class="tag t-test">Cuenta de prueba</span><span class="tag t-risk">Riesgo</span></div>
+        <p class="expect">Aviso verde: te enviamos un correo, revisa spam, y el remitente es <code>no-reply@frequency.rodrigovillegasvilla.com</code>.</p>
+        <p class="warn">Manda un correo de confirmación real. Hazlo una sola vez.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c6" aria-labelledby="c6-t"><div>
+        <div class="item-head"><span class="num">6</span><span class="do" id="c6-t">Abre el correo de confirmación</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Asunto “Confirma tu cuenta en Yo Futuro”, en español, con el botón “Confirmar mi cuenta”. Anota si llegó a la bandeja principal o a spam.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c7" aria-labelledby="c7-t"><div>
+        <div class="item-head"><span class="num">7</span><span class="do" id="c7-t">Toca “Confirmar mi cuenta”</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Abre tu dominio (no una dirección de supabase.co), con la sesión ya iniciada, directo en el onboarding.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c8" aria-labelledby="c8-t"><div>
+        <div class="item-head"><span class="num">8</span><span class="do" id="c8-t">Toca el mismo enlace otra vez, en una ventana privada</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Te manda a “Entrar”, porque el enlace ya se usó. No se rompe nada.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">3</span> Onboarding: la conversación</h2>
+    <p class="section-note">Hazlo una vez en el celular y, si puedes, repite los puntos 10 a 12 en la computadora.</p>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c9" aria-labelledby="c9-t"><div>
+        <div class="item-head"><span class="num">9</span><span class="do" id="c9-t">Mira la primera pantalla</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">“CUÉNTALE A TU YO FUTURO”, el saludo de la IA y la caja para responder.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c10" aria-labelledby="c10-t"><div>
+        <div class="item-head"><span class="num">10</span><span class="do" id="c10-t">En el celular, toca la caja y responde</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">La pantalla no hace zoom al tocar la caja. Al enviar, el teclado se queda abierto y aparece “Escribiendo…”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c11" aria-labelledby="c11-t"><div>
+        <div class="item-head"><span class="num">11</span><span class="do" id="c11-t">Escribe una respuesta larga</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">La caja crece hasta unas 6 líneas y después se desplaza por dentro. En la computadora, Shift + Enter hace salto de línea y Enter envía.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c12" aria-labelledby="c12-t"><div>
+        <div class="item-head"><span class="num">12</span><span class="do" id="c12-t">Sigue la conversación varias respuestas</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Cada respuesta nueva aparece sola, sin tener que bajar a mano, con la caja a la vista.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c13" aria-labelledby="c13-t"><div>
+        <div class="item-head"><span class="num">13</span><span class="do" id="c13-t">Pega un texto muy largo (más de 3,500 caracteres)</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Aparece un contador como “3,720 / 4,000” y la caja no deja pasar de 4,000. Bórralo antes de enviar.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c14" aria-labelledby="c14-t"><div>
+        <div class="item-head"><span class="num">14</span><span class="do" id="c14-t">A la mitad, cierra la pestaña y vuelve a entrar</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Retoma exactamente donde ibas, con la conversación completa.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c15" aria-labelledby="c15-t"><div>
+        <div class="item-head"><span class="num">15</span><span class="do" id="c15-t">Termina la conversación</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">La IA la cierra sola (o usa “Ya terminé, revisar mis datos”). Aparece “Preparando tus resultados…”; puede tardar unos segundos.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">4</span> La radiografía y “Revisa y ajusta”</h2>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c16" aria-labelledby="c16-t"><div>
+        <div class="item-head"><span class="num">16</span><span class="do" id="c16-t">Lee la radiografía</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Tres tarjetas (Tu energía actual, El patrón que te detiene, Quién quieres ser) con textos coherentes con lo que contaste. Si alguna falló, sale en gris: “Esta parte no quedó lista esta vez…”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c17" aria-labelledby="c17-t"><div>
+        <div class="item-head"><span class="num">17</span><span class="do" id="c17-t">Toca “Continuar” y revisa los datos</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Nombre, edades, área, tono, valores y metas salen de la conversación. La hora de entrega es una lista en formato normal (“8:00 a. m.”) y la zona horaria detectada es la tuya.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c18" aria-labelledby="c18-t"><div>
+        <div class="item-head"><span class="num">18</span><span class="do" id="c18-t">Borra el nombre y toca “Confirmar y empezar”</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">No guarda y avisa “El nombre es obligatorio”. Ojo: el aviso sale arriba de la pantalla (es un pendiente conocido); sube para verlo. Vuelve a escribir el nombre.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c19" aria-labelledby="c19-t"><div>
+        <div class="item-head"><span class="num">19</span><span class="do" id="c19-t">Elige como hora de entrega la próxima hora en punto y confirma</span><span class="tag t-test">Cuenta de prueba</span><span class="tag t-risk">Riesgo</span></div>
+        <p class="expect">Llegas al dashboard. Elegir la próxima hora te deja probar el primer correo en menos de una hora.</p>
+        <p class="warn">Desde aquí, esta cuenta recibe un correo diario de verdad hasta que la borres.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">5</span> Primer día, antes del correo</h2>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c20" aria-labelledby="c20-t"><div>
+        <div class="item-head"><span class="num">20</span><span class="do" id="c20-t">Mira el dashboard vacío</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">“Hola,” con el nombre; “Tu yo futuro todavía no te ha escrito.”; tareas: “Tus tareas llegan con tu mensaje de hoy.”; insight: “Tu insight llega con tu mensaje de hoy.”, sin la línea “→”; círculo en 0%.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c21" aria-labelledby="c21-t"><div>
+        <div class="item-head"><span class="num">21</span><span class="do" id="c21-t">Usa la barra inferior</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Inicio en dorado; “Chat” muestra “Próximamente”; “Progreso” y “Perfil” abren sus pantallas y se pintan en dorado.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c22" aria-labelledby="c22-t"><div>
+        <div class="item-head"><span class="num">22</span><span class="do" id="c22-t">Abre Progreso y el historial</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Progreso muestra el mensaje amable (todavía no hay tareas). El historial dice “tu primer mensaje llegará a las X:00 de America/Mexico_City”.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">6</span> El primer correo diario</h2>
+    <p class="section-note">Llega a la hora elegida, con unos minutos de retraso posibles (el cron corre cada hora desde GitHub).</p>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c23" aria-labelledby="c23-t"><div>
+        <div class="item-head"><span class="num">23</span><span class="do" id="c23-t">Revisa el asunto y el remitente</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Asunto “Tu mensaje de hoy · [día] [número] de [mes]” con la fecha de hoy. Llega como correo aparte, no dentro de otra conversación.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c24" aria-labelledby="c24-t"><div>
+        <div class="item-head"><span class="num">24</span><span class="do" id="c24-t">Revisa el contenido</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Solo texto, sin imágenes: el mensaje, “— Tu yo futuro”, “· · ·”, “Tus tareas de hoy:” con 3 tareas, y al final “Marca tus tareas en …/dashboard”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c25" aria-labelledby="c25-t"><div>
+        <div class="item-head"><span class="num">25</span><span class="do" id="c25-t">Lee el mensaje y las tareas con ojo crítico</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">El tono corresponde al elegido y habla de tus metas. Las tareas son concretas, se pueden hacer hoy y ninguna pide gastar dinero, correr riesgos ni tomar medicamentos.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c26" aria-labelledby="c26-t"><div>
+        <div class="item-head"><span class="num">26</span><span class="do" id="c26-t">Toca el enlace del final</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Abre el dashboard con el mensaje y las tareas de hoy.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">7</span> El dashboard con datos</h2>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c27" aria-labelledby="c27-t"><div>
+        <div class="item-head"><span class="num">27</span><span class="do" id="c27-t">Revisa el mensaje</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">“Tu mensaje de hoy”, la fecha correcta y abajo “Generado hoy”. No aparece “claude-sonnet-5”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c28" aria-labelledby="c28-t"><div>
+        <div class="item-head"><span class="num">28</span><span class="do" id="c28-t">Marca y desmarca tareas</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">El círculo pasa a 33%, 67% y 100%, y baja al desmarcar. Al recargar, todo sigue como lo dejaste.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c29" aria-labelledby="c29-t"><div>
+        <div class="item-head"><span class="num">29</span><span class="do" id="c29-t">Revisa el insight</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">La línea “→ Una observación de tu yo futuro sobre lo que vas aprendiendo.”, la tarjeta con su fecha (“23 SEP”) y un párrafo corto que observa, sin dar órdenes.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c30" aria-labelledby="c30-t"><div>
+        <div class="item-head"><span class="num">30</span><span class="do" id="c30-t">Al día siguiente, antes de tu hora, abre el dashboard</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Dice “Tu último mensaje” y “Generado el [fecha de ayer]”. Las tareas dicen que llegan con el mensaje de hoy.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c31" aria-labelledby="c31-t"><div>
+        <div class="item-head"><span class="num">31</span><span class="do" id="c31-t">En el celular, baja hasta el final del dashboard</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">La barra inferior no tapa los enlaces del pie (Ver historial, Editar perfil, Enviar opinión, Aviso de privacidad).</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">8</span> Progreso e historial</h2>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c32" aria-labelledby="c32-t"><div>
+        <div class="item-head"><span class="num">32</span><span class="do" id="c32-t">Abre Progreso</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Tres tarjetas (racha actual, mejor racha, días cumplidos) con números que cuadran con lo que marcaste. Calendario del mes de lunes a domingo, días en dorado según tareas marcadas, marco en hoy y leyenda visible por encima de la barra.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c33" aria-labelledby="c33-t"><div>
+        <div class="item-head"><span class="num">33</span><span class="do" id="c33-t">Usa las flechas y prueba un mes futuro</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">La flecha izquierda solo aparece si tienes tareas en meses anteriores. Escribir <code>?mes=2027-01</code> en la dirección te deja en el mes actual.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c34" aria-labelledby="c34-t"><div>
+        <div class="item-head"><span class="num">34</span><span class="do" id="c34-t">Marca una tarea en Inicio y vuelve a Progreso por la barra</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">El día de hoy cambia de color y los números se actualizan.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c35" aria-labelledby="c35-t"><div>
+        <div class="item-head"><span class="num">35</span><span class="do" id="c35-t">Abre el historial</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Todos tus mensajes, el más reciente primero, cada uno con su fecha.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">9</span> Perfil</h2>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c36" aria-labelledby="c36-t"><div>
+        <div class="item-head"><span class="num">36</span><span class="do" id="c36-t">Cambia el tono, guarda, y regrésalo</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Mensaje verde junto al botón. Al recargar se mantiene. Déjalo como estaba.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c37" aria-labelledby="c37-t"><div>
+        <div class="item-head"><span class="num">37</span><span class="do" id="c37-t">Borra el nombre y guarda</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Mensaje rojo junto al botón: “El nombre es obligatorio”. No se guarda nada.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c38" aria-labelledby="c38-t"><div>
+        <div class="item-head"><span class="num">38</span><span class="do" id="c38-t">Cambia la hora de envío y guarda</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Lista en formato normal, el aviso de desde cuándo aplica, y “Cambios guardados. Tu mensaje llegará a las X” (sin punto doble).</p>
+        <p class="aside">Con la cuenta de prueba, para no mover tu hora de las 8 a. m.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c39" aria-labelledby="c39-t"><div>
+        <div class="item-head"><span class="num">39</span><span class="do" id="c39-t">Agrega una meta, páusala y márcala como lograda</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">La meta aparece en la lista y cambia de estado. Una meta pausada deja de aparecer en los mensajes y tareas siguientes.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c40" aria-labelledby="c40-t"><div>
+        <div class="item-head"><span class="num">40</span><span class="do" id="c40-t">Cambia la contraseña y vuelve a entrar con la nueva</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Aviso verde; cierras sesión y entras con la nueva sin problema.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c41" aria-labelledby="c41-t"><div>
+        <div class="item-head"><span class="num">41</span><span class="do" id="c41-t">Toca “Pausar mis correos”</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">Mensaje verde y el estado cambia a “en pausa”. En el dashboard aparece “Tus correos diarios están en pausa. Reanúdalos en Perfil”, y los textos vacíos de tareas e insight dicen que llegarán al reanudar.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c42" aria-labelledby="c42-t"><div>
+        <div class="item-head"><span class="num">42</span><span class="do" id="c42-t">Espera la hora de envío de la cuenta en pausa</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">No llega correo ni aparecen tareas nuevas. Luego toca “Reanudar mis correos”: al día siguiente vuelve a llegar.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c43" aria-labelledby="c43-t"><div>
+        <div class="item-head"><span class="num">43</span><span class="do" id="c43-t">Cierra sesión</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Vuelves a “Entrar”, y <code>/dashboard</code> ya no abre sin iniciar sesión.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">10</span> Recuperar contraseña</h2>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c44" aria-labelledby="c44-t"><div>
+        <div class="item-head"><span class="num">44</span><span class="do" id="c44-t">En “Entrar”, toca “¿Olvidaste tu contraseña?” y sigue el correo</span><span class="tag t-test">Cuenta de prueba</span><span class="tag t-risk">Riesgo</span></div>
+        <p class="expect">Llega un correo; su enlace abre tu dominio en la pantalla para poner contraseña nueva (no el onboarding), y con la nueva puedes entrar.</p>
+        <p class="warn">Manda un correo real.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">11</span> Casos raros</h2>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c45" aria-labelledby="c45-t"><div>
+        <div class="item-head"><span class="num">45</span><span class="do" id="c45-t">Sin internet, marca una tarea</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Con el wifi apagado (o modo avión), la casilla vuelve a como estaba y sale un aviso de que no se guardó. Al volver la conexión, funciona.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c46" aria-labelledby="c46-t"><div>
+        <div class="item-head"><span class="num">46</span><span class="do" id="c46-t">Sin internet, guarda algo en Perfil</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Mensaje rojo junto al botón: “No se pudieron guardar los cambios. Revisa tu conexión…”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c47" aria-labelledby="c47-t"><div>
+        <div class="item-head"><span class="num">47</span><span class="do" id="c47-t">Un día sin tareas (si pasa)</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">No se puede forzar. Si algún día la IA no genera tareas, el correo llega igual: mensaje, firma y enlace, sin el bloque de tareas. Progreso no rompe la racha ese día.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c48" aria-labelledby="c48-t"><div>
+        <div class="item-head"><span class="num">48</span><span class="do" id="c48-t">Revisa que llegue un solo correo por día</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Durante varios días, uno por día a tu hora, nunca dos.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c49" aria-labelledby="c49-t"><div>
+        <div class="item-head"><span class="num">49</span><span class="do" id="c49-t">En el celular, baja hasta el final de Progreso y de Perfil</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">La barra inferior no tapa la leyenda de Progreso ni el botón “Eliminar cuenta” de Perfil.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <section>
+    <h2><span class="step">12</span> Cierre: borrar la cuenta de prueba</h2>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c50" aria-labelledby="c50-t"><div>
+        <div class="item-head"><span class="num">50</span><span class="do" id="c50-t">Con la cuenta de prueba, usa “Eliminar cuenta” en Perfil</span><span class="tag t-test">Cuenta de prueba</span><span class="tag t-risk">Riesgo</span></div>
+        <p class="expect">Pide escribir ELIMINAR. Al confirmar, vuelves a la página principal y ya no puedes entrar con esa cuenta.</p>
+        <p class="warn">Irreversible. Revisa que estás en la cuenta de prueba y no en la tuya.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c51" aria-labelledby="c51-t"><div>
+        <div class="item-head"><span class="num">51</span><span class="do" id="c51-t">Revisa en Supabase que tu cuenta quedó bien</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">La cuenta de prueba ya no aparece. La tuya tiene la hora de las 8 a. m. y <code>delivery_paused = false</code>.</p>
+      </div></li>
+    </ol>
+  </section>
+
+  <div class="callout known">
+    <strong>Pendientes conocidos, no hace falta reportarlos.</strong> En “Revisa y ajusta” los errores salen arriba de la pantalla;
+    la lista “Área de vida” acepta solo 4 opciones; “Chat” está en “Próximamente”; algunos textos del onboarding
+    hablan en plural (“encontramos”, “vamos”).
+  </div>
+</main>
+
+<script>
+  (function () {
+    var KEY = 'recorrido-beta-yo-futuro';
+    var boxes = Array.prototype.slice.call(document.querySelectorAll('.box'));
+    var progress = document.getElementById('progress');
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { saved = {}; }
+
+    function render() {
+      var done = 0;
+      boxes.forEach(function (box) {
+        box.closest('li').classList.toggle('done', box.checked);
+        if (box.checked) done += 1;
+      });
+      progress.textContent = done + ' de ' + boxes.length + ' marcados';
+    }
+
+    boxes.forEach(function (box) {
+      if (saved[box.id]) box.checked = true;
+      box.addEventListener('change', function () {
+        saved[box.id] = box.checked;
+        try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+        render();
+      });
+    });
+    render();
+  })();
+</script>
+
+</body>
+</html>
