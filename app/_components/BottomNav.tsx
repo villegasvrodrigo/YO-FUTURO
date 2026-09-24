@@ -79,10 +79,11 @@ function NavButton({ label, onClick, children }: { label: string; onClick: () =>
 /**
  * Barra de navegación inferior flotante, compartida por el dashboard, Progreso y Perfil.
  * Cada pantalla que la usa deja espacio abajo (pb-40) para que la barra no tape su
- * contenido. Chat es una pestaña atenuada sin funcionalidad todavía — solo muestra un
- * aviso de "Próximamente" al tocarla.
+ * contenido. Chat es una pestaña atenuada que solo muestra un aviso de "Próximamente" al
+ * tocarla, salvo para las cuentas que ya pueden usar el chat (`chatEnabled`, que decide
+ * cada página con isChatEnabledFor): para ellas es un enlace a /chat.
  */
-export function BottomNav() {
+export function BottomNav({ chatEnabled = false }: { chatEnabled?: boolean } = {}) {
   const pathname = usePathname();
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -113,9 +114,15 @@ export function BottomNav() {
           <NavLink href="/dashboard" label="Inicio" active={pathname === '/dashboard'}>
             <HomeIcon />
           </NavLink>
-          <NavButton label="Chat" onClick={() => showComingSoon('chat')}>
-            <ChatIcon />
-          </NavButton>
+          {chatEnabled ? (
+            <NavLink href="/chat" label="Chat" active={pathname === '/chat'}>
+              <ChatIcon />
+            </NavLink>
+          ) : (
+            <NavButton label="Chat" onClick={() => showComingSoon('chat')}>
+              <ChatIcon />
+            </NavButton>
+          )}
           <NavLink href="/progreso" label="Progreso" active={pathname === '/progreso'}>
             <ChartIcon />
           </NavLink>

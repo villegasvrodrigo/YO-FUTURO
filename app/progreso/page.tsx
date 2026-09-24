@@ -4,6 +4,7 @@ import { getLocalDateString } from '@/lib/messages/delivery';
 import { getFullTaskHistory } from '@/lib/tasks/history';
 import { buildProgress, type ProgressData } from '@/lib/tasks/progress';
 import { BottomNav } from '@/app/_components/BottomNav';
+import { isChatEnabledFor } from '@/lib/chat/access';
 import { ProgressView } from './ProgressView';
 
 export default async function ProgresoPage({ searchParams }: PageProps<'/progreso'>) {
@@ -38,7 +39,7 @@ export default async function ProgresoPage({ searchParams }: PageProps<'/progres
   return (
     <>
       <ProgressView progress={progress} />
-      <BottomNav />
+      <BottomNav chatEnabled={isChatEnabledFor(user.id)} />
     </>
   );
 }

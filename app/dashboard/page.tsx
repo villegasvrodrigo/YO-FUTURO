@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { getLocalDateString } from '@/lib/messages/delivery';
 import type { DailyTask } from '@/lib/types';
 import { BottomNav } from '@/app/_components/BottomNav';
+import { isChatEnabledFor } from '@/lib/chat/access';
 import { CompletionRing } from './CompletionRing';
 import { TaskList, TaskListHint, TasksProvider } from './TaskList';
 import { DailyInsight, DailyInsightHint } from './DailyInsight';
@@ -119,7 +120,7 @@ export default async function DashboardPage() {
           </div>
         </TasksProvider>
       </main>
-      <BottomNav />
+      <BottomNav chatEnabled={isChatEnabledFor(user.id)} />
     </>
   );
 }

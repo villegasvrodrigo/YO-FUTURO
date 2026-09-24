@@ -532,6 +532,78 @@
     </ol>
   </section>
 
+  <section>
+    <h2><span class="step">13</span> Chat con tu yo futuro</h2>
+    <p class="section-note">Hoy el chat solo funciona con tu cuenta. La cuenta de prueba ve “Próximamente” hasta que se abra el chat (después de la fase 7): hasta entonces, de los puntos marcados “Cuenta de prueba” solo se puede hacer el 52. Los puntos 62, 63 y 65 requieren esperar al día siguiente. Revisa en Supabase solo tu cuenta o la de prueba, nunca datos de personas reales.</p>
+    <ol class="checks">
+      <li><input class="box" type="checkbox" id="c52" aria-labelledby="c52-t"><div>
+        <div class="item-head"><span class="num">52</span><span class="do" id="c52-t">Sin acceso al chat: toca “Chat” en la barra y abre /chat escribiendo la dirección</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">En la barra sale “Chat — Próximamente”. En /chat aparece el aviso de que todavía no está disponible, con el botón “Ir al inicio”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c53" aria-labelledby="c53-t"><div>
+        <div class="item-head"><span class="num">53</span><span class="do" id="c53-t">Con acceso: toca “Chat” en la barra</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">“Chat” es un enlace, abre /chat y queda resaltado en dorado.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c54" aria-labelledby="c54-t"><div>
+        <div class="item-head"><span class="num">54</span><span class="do" id="c54-t">Escribe el primer mensaje del día</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">El yo futuro responde corto, en su voz y con el tono elegido. Arriba de cada respuesta aparece la etiqueta “TU YO FUTURO”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c55" aria-labelledby="c55-t"><div>
+        <div class="item-head"><span class="num">55</span><span class="do" id="c55-t">Pregúntale por una tarea de hoy y por una de tus metas</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Las conoce. Si ya marcaste una tarea, lo reconoce.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c56" aria-labelledby="c56-t"><div>
+        <div class="item-head"><span class="num">56</span><span class="do" id="c56-t">En el iPhone, escribe varios mensajes seguidos</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">La caja crece con el texto, no hace zoom al tocarla y el teclado no se cierra entre mensajes.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c57" aria-labelledby="c57-t"><div>
+        <div class="item-head"><span class="num">57</span><span class="do" id="c57-t">Mientras esperas una respuesta</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">El botón “Enviar” se desactiva y aparece “Tu yo futuro está escribiendo…”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c58" aria-labelledby="c58-t"><div>
+        <div class="item-head"><span class="num">58</span><span class="do" id="c58-t">Recarga la página del chat</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">La conversación de hoy sigue ahí, completa y en orden.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c59" aria-labelledby="c59-t"><div>
+        <div class="item-head"><span class="num">59</span><span class="do" id="c59-t">Sin internet (modo avión), envía un mensaje</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Aparece un aviso amable junto a la caja y el mensaje vuelve a la caja, sin perderse.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c60" aria-labelledby="c60-t"><div>
+        <div class="item-head"><span class="num">60</span><span class="do" id="c60-t">Llega al mensaje 15 del día</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Aparece “Te quedan 5 mensajes hoy” y baja con cada mensaje; con 1 dice “Te queda 1 mensaje hoy”.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c61" aria-labelledby="c61-t"><div>
+        <div class="item-head"><span class="num">61</span><span class="do" id="c61-t">Envía el mensaje 20 del día</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Aparece la despedida (“… Seguimos mañana.”), la caja queda bloqueada y se ve en pequeño la línea de ayuda. En el iPhone, al tocar 800 911 2000 o 911 ofrece llamar.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c62" aria-labelledby="c62-t"><div>
+        <div class="item-head"><span class="num">62</span><span class="do" id="c62-t">Al día siguiente, después de la medianoche de tu zona horaria, abre el chat</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">La caja está abierta de nuevo, con 20 mensajes y la conversación nueva vacía.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c63" aria-labelledby="c63-t"><div>
+        <div class="item-head"><span class="num">63</span><span class="do" id="c63-t">Al día siguiente, revisa el resumen</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">En Supabase hay una fila en <code>chat_summaries</code> para el día anterior, en tercera persona y de unas 60 a 100 palabras. El yo futuro recuerda lo importante sin repetirlo palabra por palabra.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c64" aria-labelledby="c64-t"><div>
+        <div class="item-head"><span class="num">64</span><span class="do" id="c64-t">Escribe una frase de crisis de prueba</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">La respuesta deja la voz del yo futuro, no habla de tareas ni de metas, pregunta si estás a salvo e incluye la Línea de la Vida 800 911 2000 y el 911. Ese mensaje no baja el contador del día.</p>
+        <p class="warn">Solo con la cuenta de prueba y una frase de prueba.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c65" aria-labelledby="c65-t"><div>
+        <div class="item-head"><span class="num">65</span><span class="do" id="c65-t">Al día siguiente de la crisis de prueba, abre el chat</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect">En Supabase, el resumen de ese día no tiene ningún detalle de la crisis y tiene <code>had_crisis = true</code>. El yo futuro pregunta con suavidad cómo estás.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c66" aria-labelledby="c66-t"><div>
+        <div class="item-head"><span class="num">66</span><span class="do" id="c66-t">Abre el aviso de privacidad</span><span class="tag t-mine">Tu cuenta</span></div>
+        <p class="expect">Menciona el chat, los resúmenes, las crisis, que no es un servicio de emergencias, quién puede ver la información y que todo se borra al eliminar la cuenta.</p>
+      </div></li>
+      <li><input class="box" type="checkbox" id="c67" aria-labelledby="c67-t"><div>
+        <div class="item-head"><span class="num">67</span><span class="do" id="c67-t">Después de borrar la cuenta de prueba (punto 50), revisa en Supabase</span><span class="tag t-test">Cuenta de prueba</span></div>
+        <p class="expect"><code>chat_messages</code> y <code>chat_summaries</code> no tienen ninguna fila con el id de esa cuenta.</p>
+      </div></li>
+    </ol>
+  </section>
+
   <div class="callout known">
     <strong>Pendientes conocidos, no hace falta reportarlos.</strong> En “Revisa y ajusta” los errores salen arriba de la pantalla;
     la lista “Área de vida” acepta solo 4 opciones; “Chat” está en “Próximamente”; algunos textos del onboarding

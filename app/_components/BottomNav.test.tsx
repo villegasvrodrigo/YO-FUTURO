@@ -20,10 +20,22 @@ describe('BottomNav', () => {
   });
 
   it('Chat is still a button (the "Próximamente" notice), not a link', () => {
-    const html = renderToString(<BottomNav />);
-    const chat = itemTag(html, 'Chat');
-    expect(chat.startsWith('<button')).toBe(true);
-    expect(chat).not.toContain('href=');
+    for (const html of [renderToString(<BottomNav />), renderToString(<BottomNav chatEnabled={false} />)]) {
+      const chat = itemTag(html, 'Chat');
+      expect(chat.startsWith('<button')).toBe(true);
+      expect(chat).not.toContain('href=');
+    }
+  });
+
+  it('for an account that can use the chat, Chat is a link to /chat, highlighted there', () => {
+    pathname = '/dashboard';
+    expect(itemTag(renderToString(<BottomNav chatEnabled />), 'Chat')).toContain('href="/chat"');
+    expect(itemTag(renderToString(<BottomNav chatEnabled />), 'Chat')).not.toContain('text-brass');
+
+    pathname = '/chat';
+    const html = renderToString(<BottomNav chatEnabled />);
+    expect(itemTag(html, 'Chat')).toContain('text-brass');
+    expect(itemTag(html, 'Inicio')).not.toContain('text-brass');
   });
 
   it.each([

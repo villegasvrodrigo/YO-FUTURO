@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { BottomNav } from '@/app/_components/BottomNav';
+import { isChatEnabledFor } from '@/lib/chat/access';
 import { PerfilForm } from './PerfilForm';
 
 export default async function PerfilPage() {
@@ -16,7 +17,7 @@ export default async function PerfilPage() {
   return (
     <>
       <PerfilForm profile={profile} goals={goals ?? []} />
-      <BottomNav />
+      <BottomNav chatEnabled={isChatEnabledFor(user.id)} />
     </>
   );
 }
