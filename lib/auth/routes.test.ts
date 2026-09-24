@@ -27,6 +27,11 @@ describe('isPublicRoute', () => {
     expect(isPublicRoute('/privacidad')).toBe(true);
   });
 
+  it('treats the "account deleted" page as public (there is no account or session anymore)', () => {
+    expect(isPublicRoute('/cuenta-eliminada')).toBe(true);
+    expect(requiresCompletedOnboarding('/cuenta-eliminada')).toBe(false);
+  });
+
   it('treats the "set new password" page as protected (requires the recovery session)', () => {
     expect(isPublicRoute('/auth/nueva-password')).toBe(false);
   });

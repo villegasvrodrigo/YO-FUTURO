@@ -34,9 +34,35 @@ export async function confirmOnboarding(
 ): Promise<ConfirmOnboardingResult> {
   const nonEmptyGoals = goals.map((g) => g.trim()).filter(Boolean);
 
-  const { error: goalsError } = await supabase
+  // Idempotent: a second tap of "Confirmar y empezar" (or a retry after a failure) must not
+  // save the same goals again. Read what this user already has and insert only what's
+  // missing — also dropping repeats within the list itself.
+  const { data: existing, error: readError } = await supabase
     .from('goals')
-    .insert(nonEmptyGoals.map((description) => ({ user_id: userId, description })));
+    .select('description')
+    .eq('user_id', userId);
+  if (readError) {
+    console.error('[onboarding-confirm] goals read failed', {
+      message: readError.message,
+      code: readError.code,
+    });
+    return { success: false, stage: 'goals', message: 'No se pudieron guardar tus metas, intenta de nuevo.' };
+  }
+  const seen = new Set(
+    (existing ?? []).map((row: { description?: unknown }) => goalKey(String(row.description ?? '')))
+  );
+  const toInsert: string[] = [];
+  for (const description of nonEmptyGoals) {
+    const key = goalKey(description);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    toInsert.push(description);
+  }
+
+  const { error: goalsError } =
+    toInsert.length === 0
+      ? { error: null }
+      : await supabase.from('goals').insert(toInsert.map((description) => ({ user_id: userId, description })));
   if (goalsError) {
     // PostgrestError doesn't stringify usefully via console.error's default
     // formatting in every environment — log the fields that actually matter.
@@ -77,4 +103,9 @@ export async function confirmOnboarding(
   }
 
   return { success: true };
+}
+
+// Two goals are "the same" regardless of case, spacing or surrounding blanks.
+function goalKey(description: string): string {
+  return description.trim().replace(/\s+/g, ' ').toLowerCase();
 }

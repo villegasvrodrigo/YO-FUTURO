@@ -1,5 +1,14 @@
 // /privacidad is public: the privacy notice must be readable before creating an account.
-const PUBLIC_ROUTES = new Set(['/', '/login', '/signup', '/auth/confirm', '/login/recuperar', '/privacidad']);
+// /cuenta-eliminada is public: it is shown once the account (and its session) is gone.
+const PUBLIC_ROUTES = new Set([
+  '/',
+  '/login',
+  '/signup',
+  '/auth/confirm',
+  '/login/recuperar',
+  '/privacidad',
+  '/cuenta-eliminada',
+]);
 
 export function isPublicRoute(pathname: string): boolean {
   if (PUBLIC_ROUTES.has(pathname)) return true;

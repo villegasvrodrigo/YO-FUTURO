@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
+import { navigateTo } from '@/lib/browser/navigate';
 import { PrivacyLink } from '@/app/_components/PrivacyLink';
 
 export default function SignupPage() {
@@ -11,7 +11,6 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -19,6 +18,8 @@ export default function SignupPage() {
     setError(null);
     setNotice(null);
     setSending(true);
+    // Once we're leaving for the onboarding, the button stays busy until the page changes.
+    let leaving = false;
 
     try {
       const supabase = createClient();
@@ -36,10 +37,10 @@ export default function SignupPage() {
         );
         return;
       }
-      router.push('/onboarding');
-      router.refresh();
+      leaving = true;
+      navigateTo('/onboarding');
     } finally {
-      setSending(false);
+      if (!leaving) setSending(false);
     }
   }
 

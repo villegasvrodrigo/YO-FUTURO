@@ -2,8 +2,9 @@
 
 import { Suspense, useState } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
+import { navigateTo } from '@/lib/browser/navigate';
 import { translateLoginError } from '@/lib/auth/loginErrors';
 import { PrivacyLink } from '@/app/_components/PrivacyLink';
 
@@ -23,13 +24,14 @@ function LoginForm() {
   // enlace de confirmación es inválido o ya expiró.
   const [error, setError] = useState<string | null>(searchParams.get('error'));
   const [sending, setSending] = useState(false);
-  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (sending) return;
     setError(null);
     setSending(true);
+    // Once we're leaving for the dashboard, the button stays busy until the page changes.
+    let leaving = false;
 
     try {
       const supabase = createClient();
@@ -38,10 +40,10 @@ function LoginForm() {
         setError(translateLoginError(error.message));
         return;
       }
-      router.push('/dashboard');
-      router.refresh();
+      leaving = true;
+      navigateTo('/dashboard');
     } finally {
-      setSending(false);
+      if (!leaving) setSending(false);
     }
   }
 

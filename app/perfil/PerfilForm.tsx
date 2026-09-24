@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
 import { validateProfileStep, validateDeliveryHour } from '@/lib/onboarding/validate';
 import { HOUR_OPTIONS, hourLabel } from '@/lib/messages/hourLabel';
 import { SAVE_PROFILE_FAILED, updateProfile } from '@/lib/perfil/updateProfile';
 import { DeliveryPauseSection } from './DeliveryPauseSection';
+import { deleteMyAccount } from '@/lib/perfil/deleteAccount';
+import { navigateTo } from '@/lib/browser/navigate';
 import type { Profile, Goal, GoalStatus, FocusArea, Tone } from '@/lib/types';
 
 const fieldClass =
@@ -46,7 +47,6 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
   const [deliveryHour, setDeliveryHour] = useState(profile.delivery_hour_local);
   const [goalList, setGoalList] = useState(goals);
   const [newGoal, setNewGoal] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
   // Result of "Guardar cambios", shown right under that button (the message box at the
   // top of the page is out of view when the button is tapped).
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -54,12 +54,14 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
   const [savingProfile, setSavingProfile] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordNotice, setPasswordNotice] = useState<string | null>(null);
   const [changingPassword, setChangingPassword] = useState(false);
-  const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   async function saveProfile() {
     if (savingProfile) return;
@@ -150,32 +152,44 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
   }
 
   async function logout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      await createClient().auth.signOut();
+    } catch (err) {
+      // Leave anyway: the login page is where the user wanted to go.
+      console.error('[perfil] no se pudo cerrar la sesión', err);
+    }
+    // The button stays on "Cerrando sesión…" until the login page replaces this one.
+    navigateTo('/login');
   }
 
   async function deleteAccount() {
-    const res = await fetch('/api/account/delete', { method: 'POST' });
-    if (res.ok) {
-      router.push('/');
-      router.refresh();
-    } else {
-      const body = await res.json();
-      setMessage(body.error ?? 'No se pudo eliminar la cuenta');
+    if (deleting) return;
+    setDeleteError(null);
+    setDeleting(true);
+
+    const result = await deleteMyAccount();
+    if (!result.ok) {
+      setDeleteError(result.error);
+      setDeleting(false);
+      return;
     }
+
+    // The account is gone: clear this browser's session too (it can't be used anymore),
+    // then show the confirmation page. The button stays on "Eliminando…" until then.
+    try {
+      await createClient().auth.signOut({ scope: 'local' });
+    } catch {
+      // Nothing to undo: the account no longer exists either way.
+    }
+    navigateTo('/cuenta-eliminada');
   }
 
   return (
     <main className="flex flex-1 justify-center px-6 pb-40 pt-16">
       <div className="w-full max-w-xl">
         <h1 className="mb-6 font-serif text-3xl text-parchment">Tu perfil</h1>
-        {message && (
-          <p role="status" className="mb-6 rounded-lg border border-sage/30 bg-sage/10 px-3.5 py-2.5 text-sm text-sage">
-            {message}
-          </p>
-        )}
 
         <section className="flex flex-col gap-4 rounded border-t-2 border-brass-dim bg-dusk-2 px-7 py-7">
           <div>
@@ -409,9 +423,10 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
           <button
             type="button"
             onClick={logout}
-            className="self-start font-mono text-xs text-mist transition-colors hover:text-parchment"
+            disabled={loggingOut}
+            className="self-start font-mono text-xs text-mist transition-colors hover:text-parchment disabled:opacity-50"
           >
-            Cerrar sesión
+            {loggingOut ? 'Cerrando sesión…' : 'Cerrar sesión'}
           </button>
 
           <button
@@ -433,19 +448,25 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
                 className="mb-3 w-full rounded-lg border border-danger/40 bg-dusk-2 px-3.5 py-2.5 text-[15px] text-parchment placeholder:text-mist focus:border-danger focus:outline-none focus:ring-1 focus:ring-danger"
               />
+              {deleteError && (
+                <p role="alert" className="mb-3 rounded-lg border border-danger/40 bg-dusk-2 px-3.5 py-2.5 text-sm text-danger">
+                  {deleteError}
+                </p>
+              )}
               <div className="flex gap-2.5">
                 <button
                   type="button"
-                  disabled={deleteConfirmText !== 'ELIMINAR'}
+                  disabled={deleteConfirmText !== 'ELIMINAR' || deleting}
                   onClick={deleteAccount}
                   className="rounded-lg bg-danger px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-danger/90 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  Confirmar eliminación
+                  {deleting ? 'Eliminando…' : 'Confirmar eliminación'}
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(false)}
-                  className="rounded-lg border border-rule px-4 py-2.5 text-sm font-semibold text-parchment transition-colors hover:border-brass/60"
+                  disabled={deleting}
+                  className="rounded-lg border border-rule px-4 py-2.5 text-sm font-semibold text-parchment transition-colors hover:border-brass/60 disabled:opacity-50"
                 >
                   Cancelar
                 </button>

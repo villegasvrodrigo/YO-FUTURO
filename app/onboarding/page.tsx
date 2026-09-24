@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
 import { validateProfileStep, validateGoals, validateDeliveryHour } from '@/lib/onboarding/validate';
 import {
@@ -19,6 +18,7 @@ import { ONBOARDING_GREETING } from '@/lib/onboarding/script';
 import { confirmOnboarding } from '@/lib/onboarding/confirmSave';
 import { ResultCard } from './ResultCard';
 import { AnswerBox } from './AnswerBox';
+import { navigateTo } from '@/lib/browser/navigate';
 import { initialDeliveryHour } from '@/lib/onboarding/deliveryHour';
 import { HOUR_OPTIONS } from '@/lib/messages/hourLabel';
 import {
@@ -319,7 +319,14 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
   const [timezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const router = useRouter();
+  const errorRef = useRef<HTMLParagraphElement>(null);
+
+  // If the error is out of view anyway (a short phone screen), bring it in.
+  useEffect(() => {
+    if (!error) return;
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    errorRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'nearest' });
+  }, [error]);
 
   async function confirmAndSave() {
     // Guards against a double-click sending two concurrent inserts — with no protection
@@ -335,6 +342,9 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
     if (hourErr) return setError(hourErr);
     setError(null);
     setSaving(true);
+    // True once we're leaving for the dashboard: the button stays on "Guardando…" until the
+    // new page replaces this one, so it can't be tapped again in between.
+    let leaving = false;
 
     try {
       const supabase = createClient();
@@ -374,10 +384,13 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
       // snapshot has served its purpose and would only cause confusion if left behind.
       await clearOnboardingProgress(supabase, user.id);
 
-      router.push('/dashboard');
-      router.refresh();
+      leaving = true;
+      navigateTo('/dashboard');
+    } catch (err) {
+      console.error('[onboarding-confirm] no se pudo guardar', err);
+      setError('No se pudo guardar. Revisa tu conexión e intenta de nuevo.');
     } finally {
-      setSaving(false);
+      if (!leaving) setSaving(false);
     }
   }
 
@@ -390,12 +403,6 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
         <h1 className="mb-8 text-balance font-serif text-3xl italic text-parchment">
           Revisa y ajusta antes de empezar
         </h1>
-
-        {error && (
-          <p role="alert" className="mb-5 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
-            {error}
-          </p>
-        )}
 
         <div className="flex flex-col gap-4">
           <div>
@@ -507,6 +514,17 @@ function ConfirmationScreen({ extracted }: { extracted: ExtractedProfile }) {
               Zona horaria detectada: <span className="text-brass">{timezone}</span>
             </p>
           </div>
+          {/* Errors show right above the button that was just tapped: at the top of this long
+              form they were out of view and the screen seemed stuck. */}
+          {error && (
+            <p
+              ref={errorRef}
+              role="alert"
+              className="mt-2 rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger"
+            >
+              {error}
+            </p>
+          )}
           <button
             type="button"
             onClick={confirmAndSave}

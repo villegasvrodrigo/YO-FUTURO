@@ -1,15 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/browser';
+import { navigateTo } from '@/lib/browser/navigate';
 
 export default function NuevaPasswordPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,6 +24,8 @@ export default function NuevaPasswordPage() {
     }
     setError(null);
     setSaving(true);
+    // Once we're leaving for the dashboard, the button stays busy until the page changes.
+    let leaving = false;
 
     try {
       const supabase = createClient();
@@ -33,10 +34,10 @@ export default function NuevaPasswordPage() {
         setError(error.message);
         return;
       }
-      router.push('/dashboard');
-      router.refresh();
+      leaving = true;
+      navigateTo('/dashboard');
     } finally {
-      setSaving(false);
+      if (!leaving) setSaving(false);
     }
   }
 
