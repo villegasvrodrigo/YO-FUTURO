@@ -53,6 +53,8 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// /api/ routes are left out: each one checks the session (or the cron secret) itself and
+// answers with JSON, so a missing session must never become an HTML redirect to /login.
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!api/|_next/static|_next/image|favicon.ico).*)'],
 };
