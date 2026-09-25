@@ -40,6 +40,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   vi.restoreAllMocks();
   getUser.mockReset();
   from.mockReset();
@@ -54,8 +55,19 @@ describe('/chat', () => {
     await expect(ChatPage()).rejects.toThrow('redirect:/login');
   });
 
-  it('shows any other account the "not available yet" notice, without reading the chat', async () => {
+  it('opens the chat for any account, not only the owner\'s', async () => {
     getUser.mockResolvedValue({ data: { user: { id: '0a2a2da9-9330-4154-96fa-5be6c82da257' } } });
+    tables({ profiles: { data: { timezone: 'America/Mexico_City' }, error: null }, chat_messages: { data: [], error: null } });
+
+    const html = renderToString(await ChatPage());
+
+    expect(html).toContain('<textarea');
+    expect(html).toContain('href="/chat"');
+  });
+
+  it('with CHAT_ENABLED=false, shows everyone the "not available yet" notice, without reading the chat', async () => {
+    vi.stubEnv('CHAT_ENABLED', 'false');
+    getUser.mockResolvedValue({ data: { user: { id: OWNER } } });
 
     const html = renderToString(await ChatPage());
 

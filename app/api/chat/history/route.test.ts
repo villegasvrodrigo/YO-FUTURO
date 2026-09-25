@@ -21,6 +21,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.mocked(readEarlierDays).mockReset();
   getUser.mockReset();
+  vi.unstubAllEnvs();
 });
 
 describe('GET /api/chat/history', () => {
@@ -31,8 +32,16 @@ describe('GET /api/chat/history', () => {
     expect(readEarlierDays).not.toHaveBeenCalled();
   });
 
-  it("tells any other account the chat isn't available, without reading anything", async () => {
+  it('reads the earlier days of any account, with its own session', async () => {
     getUser.mockResolvedValue({ data: { user: { id: '0a2a2da9-9330-4154-96fa-5be6c82da257' } } });
+
+    expect((await GET(request('?before=2026-09-25'))).status).toBe(200);
+    expect(readEarlierDays).toHaveBeenCalledWith(client, '0a2a2da9-9330-4154-96fa-5be6c82da257', '2026-09-25');
+  });
+
+  it("with CHAT_ENABLED=false, says the chat isn't available, without reading anything", async () => {
+    vi.stubEnv('CHAT_ENABLED', 'false');
+    getUser.mockResolvedValue({ data: { user: { id: OWNER } } });
 
     const response = await GET(request('?before=2026-09-25'));
 

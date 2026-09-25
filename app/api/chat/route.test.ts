@@ -32,6 +32,7 @@ afterEach(() => {
   vi.mocked(sendChatMessage).mockReset();
   vi.mocked(createAdminClient).mockClear();
   getUser.mockReset();
+  vi.unstubAllEnvs();
 });
 
 describe('POST /api/chat', () => {
@@ -44,8 +45,18 @@ describe('POST /api/chat', () => {
     expect(sendChatMessage).not.toHaveBeenCalled();
   });
 
-  it("tells any other account the chat isn't available, without touching the database or the AI", async () => {
+  it('passes on the message of any account, not only the owner\'s', async () => {
     getUser.mockResolvedValue({ data: { user: { id: '0a2a2da9-9330-4154-96fa-5be6c82da257' } } });
+
+    const response = await POST(request('{"message":"Hola"}'));
+
+    expect(response.status).toBe(200);
+    expect(vi.mocked(sendChatMessage).mock.calls[0][0]).toMatchObject({ userId: '0a2a2da9-9330-4154-96fa-5be6c82da257' });
+  });
+
+  it("with CHAT_ENABLED=false, says the chat isn't available, without touching the database or the AI", async () => {
+    vi.stubEnv('CHAT_ENABLED', 'false');
+    getUser.mockResolvedValue({ data: { user: { id: OWNER } } });
 
     const response = await POST(request('{"message":"Hola"}'));
 

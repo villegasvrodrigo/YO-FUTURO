@@ -1,9 +1,18 @@
-// While the chat is being built (until the real-use test, phase 7), it only works for the
-// owner's account. Everyone else keeps seeing "Chat — Próximamente" and the API answers that
-// it isn't available yet, without calling the AI or saving anything.
-export const CHAT_ALLOWED_USER_IDS: readonly string[] = ['39fc48c8-e574-43a4-a192-b0ce420686d2'];
+// Who can use the chat: every signed-in account. The screens that show it (Inicio, Chat,
+// Progreso, Perfil) already require a finished onboarding (the middleware sends anyone else
+// to /onboarding), and the route that answers messages checks it again before doing anything.
+//
+// Switch: the CHAT_ENABLED environment variable. "false" turns the chat off for everyone
+// (the bar shows "Chat — Próximamente" and the API answers that it isn't available, without
+// calling the AI or saving anything). Missing or any other value: the chat is on. It is read on
+// the server only, so changing it in Vercel takes effect with the next deployment.
 
-/** Whether this account can use the chat yet. */
+/** Whether the chat is switched on (CHAT_ENABLED is not "false"). */
+export function isChatSwitchedOn(): boolean {
+  return process.env.CHAT_ENABLED?.trim().toLowerCase() !== 'false';
+}
+
+/** Whether this account can use the chat now. */
 export function isChatEnabledFor(userId: string | null | undefined): boolean {
-  return !!userId && CHAT_ALLOWED_USER_IDS.includes(userId);
+  return !!userId && isChatSwitchedOn();
 }
