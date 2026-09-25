@@ -11,55 +11,62 @@ import { DailyMessage, PausedNotice } from './DailyMessage';
 import { messageDay } from '@/lib/messages/messageDay';
 import { getLatestInsight } from '@/lib/insights/latest';
 
+type Supabase = Awaited<ReturnType<typeof createClient>>;
+
+// Today's tasks: the ones saved for the user's LOCAL date today. Any problem here (bad
+// timezone, failed read) just means no tasks are shown; it never breaks the dashboard.
+async function readTodayTasks(supabase: Supabase, userId: string, timezone: string | null | undefined): Promise<DailyTask[]> {
+  if (!timezone) return [];
+  try {
+    const today = getLocalDateString(new Date(), timezone);
+    const { data, error } = await supabase
+      .from('daily_tasks')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('task_date', today)
+      .order('position', { ascending: true });
+    if (error) {
+      console.error('[dashboard] no se pudieron leer las tareas de hoy:', error.message);
+      return [];
+    }
+    return (data as DailyTask[]) ?? [];
+  } catch (err) {
+    console.error('[dashboard] no se pudo calcular la fecha local para las tareas:', err);
+    return [];
+  }
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('name, timezone, delivery_paused')
-    .eq('id', user.id)
-    .maybeSingle();
+  // The reads run at the same time instead of one after another. Only the tasks wait, for the
+  // profile's time zone. (Each query is awaited once, inside its own async function: a
+  // Supabase query runs again every time it is awaited.)
+  const profileRead = (async () =>
+    (await supabase.from('profiles').select('name, timezone, delivery_paused').eq('id', user.id).maybeSingle()).data)();
+  const messageRead = (async () =>
+    (
+      await supabase
+        .from('messages')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('generated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ).data)();
+  const tasksRead = profileRead.then((profile) => readTodayTasks(supabase, user.id, profile?.timezone));
+  // The most recent insight, from whatever day, read with the user's own session. A failed
+  // read just shows the friendly message; it never breaks the dashboard.
+  const insightRead = getLatestInsight(supabase, user.id);
 
-  const { data: latestMessage } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('generated_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const [profile, latestMessage, tasks, latestInsight] = await Promise.all([profileRead, messageRead, tasksRead, insightRead]);
 
   const name = profile?.name?.trim();
   // Which day the latest message is from, in the user's time zone: the title and the line
   // under the message say "today" only when it really is today.
   const latestMessageDay = latestMessage ? messageDay(latestMessage.generated_at, profile?.timezone, new Date()) : null;
-
-  // Today's tasks: the ones saved for the user's LOCAL date today. Any problem here (bad
-  // timezone, failed read) just means no tasks are shown; it never breaks the dashboard.
-  let tasks: DailyTask[] = [];
-  if (profile?.timezone) {
-    try {
-      const today = getLocalDateString(new Date(), profile.timezone);
-      const { data, error } = await supabase
-        .from('daily_tasks')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('task_date', today)
-        .order('position', { ascending: true });
-      if (error) {
-        console.error('[dashboard] no se pudieron leer las tareas de hoy:', error.message);
-      } else {
-        tasks = (data as DailyTask[]) ?? [];
-      }
-    } catch (err) {
-      console.error('[dashboard] no se pudo calcular la fecha local para las tareas:', err);
-    }
-  }
-
-  // The most recent insight, from whatever day, read with the user's own session. A failed
-  // read just shows the friendly message; it never breaks the dashboard.
-  const latestInsight = await getLatestInsight(supabase, user.id);
 
   return (
     <>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import Link, { useLinkStatus } from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const COMING_SOON_LABEL: Record<'chat', string> = {
@@ -63,14 +63,36 @@ export const BOTTOM_NAV_SPACE = 'calc(6rem + env(safe-area-inset-bottom))';
 const itemClass =
   'flex flex-col items-center gap-1 rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide transition-colors';
 
+// Lo de adentro de un enlace de la barra: se pone dorado en cuanto se toca, mientras carga la
+// pantalla siguiente, para que se note que el toque sí se registró.
+function NavLinkBody({ children }: { children: React.ReactNode }) {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      data-pending={pending ? 'true' : undefined}
+      className={`flex flex-col items-center gap-1 transition-colors ${pending ? 'text-brass' : ''}`}
+    >
+      {children}
+    </span>
+  );
+}
+
 function NavLink({ href, label, active, children }: { href: string; label: string; active: boolean; children: React.ReactNode }) {
   return (
     <Link href={href} className={`${itemClass} ${active ? 'text-brass' : 'text-mist hover:text-parchment'}`}>
-      {children}
-      {label}
+      <NavLinkBody>
+        {children}
+        {label}
+      </NavLinkBody>
     </Link>
   );
 }
+
+// Si la cuenta puede usar el chat, según la última barra que se mostró en este navegador. Las
+// pantallas de carga no saben de quién es la cuenta; con esto su barra se ve igual que la de
+// la pantalla que viene. Solo vive en el navegador: en el servidor siempre es false, para no
+// mezclar cuentas.
+let lastKnownChatEnabled = false;
 
 function NavButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -87,10 +109,20 @@ function NavButton({ label, onClick, children }: { label: string; onClick: () =>
  * contenido. Chat es una pestaña atenuada que solo muestra un aviso de "Próximamente" al
  * tocarla, salvo para las cuentas que ya pueden usar el chat (`chatEnabled`, que decide
  * cada página con isChatEnabledFor): para ellas es un enlace a /chat.
- * `hidden` la esconde (el chat lo usa mientras el teclado del celular está abierto).
+ * `hidden` la esconde (el chat lo usa mientras el teclado del celular está abierto). Las
+ * pantallas de carga usan chatEnabled="last-known" (ver lastKnownChatEnabled).
  */
-export function BottomNav({ chatEnabled = false, hidden = false }: { chatEnabled?: boolean; hidden?: boolean } = {}) {
+export function BottomNav({
+  chatEnabled = false,
+  hidden = false,
+}: { chatEnabled?: boolean | 'last-known'; hidden?: boolean } = {}) {
   const pathname = usePathname();
+  const showChatLink =
+    chatEnabled === 'last-known' ? typeof window !== 'undefined' && lastKnownChatEnabled : chatEnabled;
+
+  useEffect(() => {
+    if (chatEnabled !== 'last-known') lastKnownChatEnabled = chatEnabled;
+  }, [chatEnabled]);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -123,7 +155,7 @@ export function BottomNav({ chatEnabled = false, hidden = false }: { chatEnabled
           <NavLink href="/dashboard" label="Inicio" active={pathname === '/dashboard'}>
             <HomeIcon />
           </NavLink>
-          {chatEnabled ? (
+          {showChatLink ? (
             <NavLink href="/chat" label="Chat" active={pathname === '/chat'}>
               <ChatIcon />
             </NavLink>
