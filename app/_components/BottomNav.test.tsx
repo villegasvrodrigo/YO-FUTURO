@@ -49,4 +49,17 @@ describe('BottomNav', () => {
       expect(itemTag(html, other).includes('text-brass')).toBe(other === label);
     }
   });
+
+  it('shows normally unless it is asked to hide', () => {
+    const navTag = (html: string) => html.slice(html.indexOf('<nav'), html.indexOf('>', html.indexOf('<nav')) + 1);
+
+    const shown = navTag(renderToString(<BottomNav chatEnabled />));
+    expect(shown).not.toContain('hidden');
+    expect(shown).toMatch(/class="[^"]*\bflex\b/);
+
+    const hidden = navTag(renderToString(<BottomNav chatEnabled hidden />));
+    expect(hidden).toContain('hidden=""');
+    expect(hidden).toMatch(/class="[^"]*\bhidden\b/);
+    expect(hidden).not.toMatch(/class="[^"]*\bflex\b/);
+  });
 });

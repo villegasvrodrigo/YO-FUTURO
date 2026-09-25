@@ -55,23 +55,32 @@ export default async function ChatPage() {
     }
   }
 
+  if (enabled) {
+    // The chat fills the window: ChatScreen pins its box above the bottom bar, keeps the end
+    // of the page clear of the bar, and renders the bar itself (it hides it while typing).
+    return (
+      <main className="flex flex-1 justify-center px-6 pt-8">
+        <div className="flex w-full max-w-xl flex-col">
+          <p className="mb-4 font-mono text-xs tracking-[0.14em] text-brass">TU YO FUTURO</p>
+          <ChatScreen
+            initialMessages={messages.map(({ role, content }) => ({ role, content }))}
+            initialMessagesLeft={messagesLeft(messages)}
+            loadError={loadError}
+          />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <>
       <main className="flex flex-1 justify-center px-6 pb-40 pt-8">
         <div className="w-full max-w-xl">
           <p className="mb-4 font-mono text-xs tracking-[0.14em] text-brass">TU YO FUTURO</p>
-          {enabled ? (
-            <ChatScreen
-              initialMessages={messages.map(({ role, content }) => ({ role, content }))}
-              initialMessagesLeft={messagesLeft(messages)}
-              loadError={loadError}
-            />
-          ) : (
-            <ChatNotAvailable />
-          )}
+          <ChatNotAvailable />
         </div>
       </main>
-      <BottomNav chatEnabled={enabled} />
+      <BottomNav />
     </>
   );
 }

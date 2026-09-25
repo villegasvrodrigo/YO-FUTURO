@@ -55,6 +55,11 @@ function UserIcon() {
   );
 }
 
+// Lo que ocupa la barra desde el borde de abajo (su separación de 1.25rem más su altura, unos
+// 67 px), con un poco de aire: lo que una pantalla debe dejar libre para que la barra no tape
+// lo que está justo encima de ella.
+export const BOTTOM_NAV_SPACE = 'calc(6rem + env(safe-area-inset-bottom))';
+
 const itemClass =
   'flex flex-col items-center gap-1 rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide transition-colors';
 
@@ -82,8 +87,9 @@ function NavButton({ label, onClick, children }: { label: string; onClick: () =>
  * contenido. Chat es una pestaña atenuada que solo muestra un aviso de "Próximamente" al
  * tocarla, salvo para las cuentas que ya pueden usar el chat (`chatEnabled`, que decide
  * cada página con isChatEnabledFor): para ellas es un enlace a /chat.
+ * `hidden` la esconde (el chat lo usa mientras el teclado del celular está abierto).
  */
-export function BottomNav({ chatEnabled = false }: { chatEnabled?: boolean } = {}) {
+export function BottomNav({ chatEnabled = false, hidden = false }: { chatEnabled?: boolean; hidden?: boolean } = {}) {
   const pathname = usePathname();
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -109,7 +115,10 @@ export function BottomNav({ chatEnabled = false }: { chatEnabled?: boolean } = {
           </p>
         </div>
       )}
-      <nav className="fixed inset-x-0 bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-30 flex justify-center px-4">
+      <nav
+        hidden={hidden}
+        className={`fixed inset-x-0 bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-30 justify-center px-4 ${hidden ? 'hidden' : 'flex'}`}
+      >
         <div className="flex items-center gap-1 rounded-full border border-[#454b5f] bg-[#303545] px-1.5 py-1.5 shadow-xl">
           <NavLink href="/dashboard" label="Inicio" active={pathname === '/dashboard'}>
             <HomeIcon />

@@ -18,7 +18,8 @@ export function messageCounter(length: number): string | null {
  * AnswerBox: it grows with the text up to about six lines, stays editable while the reply is
  * on its way (disabling it would close the phone keyboard after every message; only sending
  * is blocked), and its text is 16px on phones so iPhone Safari doesn't zoom in. Once today's
- * messages are used up (`locked`) it is disabled until the next day.
+ * messages are used up (`locked`) it is disabled until the next day. `onFocusChange` says
+ * when the box gets or loses the focus (on a phone: when the keyboard opens or closes).
  */
 export function ChatBox({
   value,
@@ -26,12 +27,14 @@ export function ChatBox({
   onSend,
   sending,
   locked,
+  onFocusChange,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSend: () => void;
   sending: boolean;
   locked: boolean;
+  onFocusChange?: (focused: boolean) => void;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
 
@@ -56,6 +59,8 @@ export function ChatBox({
           maxLength={MAX_USER_MESSAGE_LENGTH}
           disabled={locked}
           onChange={(e) => onChange(e.target.value)}
+          onFocus={() => onFocusChange?.(true)}
+          onBlur={() => onFocusChange?.(false)}
           onKeyDown={(e) => {
             if (shouldSendOnKey({ key: e.key, shiftKey: e.shiftKey, isComposing: e.nativeEvent.isComposing })) {
               e.preventDefault();
@@ -70,6 +75,9 @@ export function ChatBox({
         <button
           type="button"
           onClick={onSend}
+          // Tapping "Enviar" must not take the focus from the box: that would close the phone
+          // keyboard (and bring the bottom bar back) after every message.
+          onMouseDown={(e) => e.preventDefault()}
           disabled={sending || locked}
           className="shrink-0 rounded-lg bg-brass px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:bg-brass/90 disabled:opacity-50"
         >

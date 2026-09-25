@@ -63,6 +63,10 @@ describe('/chat', () => {
     expect(html).not.toContain('textarea');
     expect(from).not.toHaveBeenCalled();
     expect(after).not.toHaveBeenCalled();
+    // As before: the usual page padding, and a bar where Chat is still "Próximamente".
+    expect(html).toContain('pb-40');
+    expect(html.match(/<nav/g)).toHaveLength(1);
+    expect(html).not.toContain('href="/chat"');
   });
 
   it("after the owner's page is sent, checks the last conversation's summary for today's local date", async () => {
@@ -105,6 +109,9 @@ describe('/chat', () => {
     expect(html).toContain('Aquí estoy.');
     expect(html).toContain('<textarea');
     expect(html).toContain('href="/chat"');
+    // One bar only (the chat screen's own), and no fixed padding: the screen manages its space.
+    expect(html.match(/<nav/g)).toHaveLength(1);
+    expect(html).not.toContain('pb-40');
   });
 
   it('opens locked when the 20 messages of today are used up', async () => {
