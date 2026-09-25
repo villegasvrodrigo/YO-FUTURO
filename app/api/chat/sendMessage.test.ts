@@ -297,3 +297,44 @@ describe('sendChatMessage — logs', () => {
     }
   });
 });
+
+describe('sendChatMessage — reads at the same time', () => {
+  it('asks for goals and the email with the profile, and for today\'s conversation, tasks and summary together once it arrives', async () => {
+    let releaseProfile: (value: Profile) => void = () => {};
+    let releaseToday: (value: StoredChatMessage[]) => void = () => {};
+    const store = fakeStore({
+      getProfile: vi.fn(() => new Promise<Profile>((resolve) => (releaseProfile = resolve))),
+      getTodaysMessages: vi.fn(() => new Promise<StoredChatMessage[]>((resolve) => (releaseToday = resolve))),
+    });
+    const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    const result = send(store);
+    await tick();
+    // Only the profile is pending: goals and email were asked for at the same time.
+    expect(store.getActiveGoals).toHaveBeenCalledWith(USER);
+    expect(store.getLatestDailyMessage).toHaveBeenCalledWith(USER);
+    expect(store.getTodaysMessages).not.toHaveBeenCalled();
+    expect(store.getTasks).not.toHaveBeenCalled();
+
+    releaseProfile(profile);
+    await tick();
+    // Today's conversation is still pending: tasks and summary were asked for with it.
+    expect(store.getTodaysMessages).toHaveBeenCalledWith(USER, TODAY);
+    expect(store.getTasks).toHaveBeenCalledWith(USER, TODAY);
+    expect(store.getLastSummary).toHaveBeenCalledWith(USER, TODAY);
+
+    releaseToday(exchanges(2));
+    expect(await result).toMatchObject({ status: 200, body: { messagesLeft: 17 } });
+  });
+
+  it('a failed early read never escapes, even when the message stops before using it', async () => {
+    const store = fakeStore({
+      getProfile: vi.fn().mockResolvedValue(null),
+      getActiveGoals: vi.fn().mockRejectedValue(new Error('timeout')),
+      getLatestDailyMessage: vi.fn().mockRejectedValue(new Error('timeout')),
+    });
+
+    expect(await send(store)).toMatchObject({ status: 403, body: { code: 'onboarding_incomplete' } });
+  });
+});
+

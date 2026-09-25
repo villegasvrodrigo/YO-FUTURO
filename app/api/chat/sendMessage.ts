@@ -64,13 +64,25 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
   const userMessage = cleanUserMessage(input.message);
   if (!userMessage) return failure(400, 'invalid_message');
 
+  // Reads that don't depend on each other run at the same time. Goals and the latest email
+  // start right away, with the profile; today's conversation, tasks and summary need the
+  // person's local "today" (the profile's time zone), so they start together as soon as the
+  // profile arrives. Goals, email, tasks and summary are optional: each one catches its own
+  // failure (see optional), so starting them early never leaves an unhandled error.
+  const goalsRead = optional('metas', store.getActiveGoals(userId), [] as string[]);
+  const emailRead = optional('mensaje del día', store.getLatestDailyMessage(userId), null);
+
   let profile;
   let todaysMessages: StoredChatMessage[];
   let today: string;
+  let tasksRead: Promise<ChatTask[]>;
+  let summaryRead: Promise<ChatSummary | null>;
   try {
     profile = await store.getProfile(userId);
     if (!profile || !profile.onboarding_completed) return failure(403, 'onboarding_incomplete');
     today = chatDate(now, profile.timezone);
+    tasksRead = optional('tareas', store.getTasks(userId, today), [] as ChatTask[]);
+    summaryRead = optional('resumen', store.getLastSummary(userId, today), null as ChatSummary | null);
     todaysMessages = await store.getTodaysMessages(userId, today);
   } catch (err) {
     console.error(`[chat] no se pudo preparar la conversación: ${describeError(err)}`);
@@ -81,12 +93,7 @@ export async function sendChatMessage(input: SendChatMessageInput): Promise<Send
     return failure(429, 'limit_reached', 0);
   }
 
-  const [goals, latestEmail, todayTasks, lastSummary] = await Promise.all([
-    optional('metas', store.getActiveGoals(userId), [] as string[]),
-    optional('mensaje del día', store.getLatestDailyMessage(userId), null),
-    optional('tareas', store.getTasks(userId, today), [] as ChatTask[]),
-    optional('resumen', store.getLastSummary(userId, today), null as ChatSummary | null),
-  ]);
+  const [goals, latestEmail, todayTasks, lastSummary] = await Promise.all([goalsRead, emailRead, tasksRead, summaryRead]);
 
   const todayMessage =
     latestEmail && chatDate(new Date(latestEmail.generated_at), profile.timezone) === today ? latestEmail.content : null;

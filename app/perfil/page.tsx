@@ -9,8 +9,11 @@ export default async function PerfilPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
 
-  const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-  const { data: goals } = await supabase.from('goals').select('*').eq('user_id', user.id);
+  // Both reads at the same time instead of one after another.
+  const [{ data: profile }, { data: goals }] = await Promise.all([
+    (async () => await supabase.from('profiles').select('*').eq('id', user.id).single())(),
+    (async () => await supabase.from('goals').select('*').eq('user_id', user.id))(),
+  ]);
 
   if (!profile) redirect('/onboarding');
 
