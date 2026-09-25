@@ -73,6 +73,10 @@ describe('hasCrisisPhrase', () => {
     'Ya no quiero estar aquí',
     'Todos estarían mejor sin mí',
     'no quiero despertar mañana',
+    'Todos estarían más tranquilos si yo no existiera',
+    'sería más fácil si no existiera',
+    'Mi familia estaría mejor sin mí',
+    'Estarían MÁS TRANQUILOS SIN MÍ',
   ])('recognizes "%s"', (message) => {
     expect(hasCrisisPhrase(message)).toBe(true);
   });

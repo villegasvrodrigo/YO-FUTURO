@@ -41,6 +41,17 @@ describe('CHAT_INSTRUCTIONS', () => {
     expect(CHAT_INSTRUCTIONS).not.toContain('Puedes preguntarle si ahora está a salvo.');
   });
 
+  it('never deduce gender from the name, and give the numbers directly in a crisis', () => {
+    expect(CHAT_INSTRUCTIONS).toContain(
+      '- Usa el género con el que la persona se refiere a sí misma en sus mensajes. No lo deduzcas de su nombre. Si no lo sabes, usa formas neutras (por ejemplo, «a solas» en vez de «solo» o «sola»).'
+    );
+    expect(CHAT_INSTRUCTIONS).toContain(
+      '- Da los números de forma directa, nunca como condicional (no digas «si en algún momento piensas…»): la persona ya te está diciendo cómo se siente.'
+    );
+    // Right after the line that gives the numbers.
+    expect(CHAT_INSTRUCTIONS.indexOf('Da los números de forma directa')).toBeGreaterThan(CHAT_INSTRUCTIONS.indexOf('Dale estos números'));
+  });
+
   it('ask for the JSON the server reads', () => {
     expect(CHAT_INSTRUCTIONS).toContain('"respuesta"');
     expect(CHAT_INSTRUCTIONS).toContain('"crisis"');
