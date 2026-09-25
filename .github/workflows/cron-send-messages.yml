@@ -14,8 +14,10 @@ jobs:
     steps:
       - name: Llamar a /api/cron/send-messages
         run: |
+          # 290 s: just under the route's own 300 s limit (maxDuration), so a busy hour with
+          # many people is never cut off here while the app is still sending.
           status=$(curl -sS -o /tmp/response.txt -w '%{http_code}' \
-            --max-time 90 \
+            --max-time 290 \
             -X GET "${CRON_TARGET_URL}/api/cron/send-messages" \
             -H "Authorization: Bearer ${CRON_SECRET}")
           echo "HTTP status: $status"
@@ -24,6 +26,18 @@ jobs:
           echo ""
           if [ "$status" != "200" ]; then
             echo "::error::/api/cron/send-messages devolvió $status en vez de 200"
+            exit 1
+          fi
+          # A 200 can still mean some people got no message ("failed" > 0): mark the run red
+          # so GitHub sends the failure notice. Runs after the app is done: it never stops or
+          # repeats any email.
+          failed=$(jq -r '.failed' /tmp/response.txt 2>/dev/null || true)
+          if ! [[ "$failed" =~ ^[0-9]+$ ]]; then
+            echo "::error::La respuesta no trae el número de fallidos"
+            exit 1
+          fi
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed persona(s) no recibieron su mensaje en esta corrida"
             exit 1
           fi
         env:
