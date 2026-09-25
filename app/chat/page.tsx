@@ -24,29 +24,44 @@ export default async function ChatPage() {
 
   let messages: (ChatBubble & CountableMessage)[] = [];
   let loadError: string | null = null;
+  let today = '';
+  let hasEarlierDays = false;
   if (enabled) {
     const { data: profile } = await supabase.from('profiles').select('timezone').eq('id', user.id).maybeSingle();
     // Today in the person's time zone (a bad or missing one falls back, never fails).
-    const today = chatDate(new Date(), profile?.timezone);
+    today = chatDate(new Date(), profile?.timezone);
     const userId = user.id;
 
     // After the page is sent (the person never waits for it): if the last conversation of a
     // previous day has no summary yet, write it. Written with the admin client, since the
     // person can only read chat_summaries. Any failure is only logged.
+    const summaryDay = today;
     after(async () => {
       try {
-        await ensureLastSummary({ userId, today, store: createChatStore(createAdminClient()) });
+        await ensureLastSummary({ userId, today: summaryDay, store: createChatStore(createAdminClient()) });
       } catch (err) {
         console.error(`[chat-resumen] sin resumen: ${err instanceof Error ? err.message : 'error desconocido'}`);
       }
     });
 
-    const { data, error } = await supabase
-      .from('chat_messages')
-      .select('role, content, is_crisis')
-      .eq('user_id', user.id)
-      .eq('chat_date', today)
-      .order('created_at', { ascending: true });
+    // Today's conversation, and (at the same time) whether there is any before today, for the
+    // "Ver días anteriores" button. A failed check just hides the button.
+    const [{ data, error }, earlier] = await Promise.all([
+      (async () =>
+        await supabase
+          .from('chat_messages')
+          .select('role, content, is_crisis')
+          .eq('user_id', userId)
+          .eq('chat_date', today)
+          .order('created_at', { ascending: true }))(),
+      (async () =>
+        await supabase.from('chat_messages').select('chat_date').eq('user_id', userId).lt('chat_date', today).limit(1))(),
+    ]);
+    if (earlier.error) {
+      console.error('[chat] no se pudo revisar si hay días anteriores:', earlier.error.message);
+    } else {
+      hasEarlierDays = (earlier.data ?? []).length > 0;
+    }
     if (error) {
       console.error('[chat] no se pudo leer la conversación de hoy:', error.message);
       loadError = LOAD_ERROR;
@@ -66,6 +81,8 @@ export default async function ChatPage() {
             initialMessages={messages.map(({ role, content }) => ({ role, content }))}
             initialMessagesLeft={messagesLeft(messages)}
             loadError={loadError}
+            today={today}
+            hasEarlierDays={hasEarlierDays}
           />
         </div>
       </main>

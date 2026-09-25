@@ -1,3 +1,5 @@
+import { shiftDate } from '@/lib/tasks/dates';
+
 // The pieces of the chat screen that only show things (no state), kept apart so they can be
 // tested on their own.
 
@@ -100,6 +102,42 @@ export function ChatNotAvailable() {
       >
         Ir al inicio
       </a>
+    </div>
+  );
+}
+
+/**
+ * The name of a conversation day, as its separator shows it: "Hoy", "Ayer", or the weekday and
+ * date ("miércoles 23 de septiembre", with the year when it isn't this year's). `date` and
+ * `today` are "YYYY-MM-DD" in the person's time zone.
+ */
+export function dayLabel(date: string, today: string): string {
+  if (date === today) return 'Hoy';
+  try {
+    if (date === shiftDate(today, -1)) return 'Ayer';
+  } catch {
+    // No valid "today": just the date below.
+  }
+  const [year, month, day] = date.split('-').map(Number);
+  return new Intl.DateTimeFormat('es-MX', {
+    timeZone: 'UTC',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    ...(today.startsWith(`${year}-`) ? {} : { year: 'numeric' }),
+  })
+    .format(new Date(Date.UTC(year, month - 1, day)))
+    // "miércoles, 23 de septiembre" → "miércoles 23 de septiembre".
+    .replace(',', '');
+}
+
+/** The line with a day's name between conversation days. */
+export function DaySeparator({ label }: { label: string }) {
+  return (
+    <div className="my-4 flex items-center gap-3" role="separator" aria-label={label}>
+      <span className="h-px flex-1 bg-rule" />
+      <span className="font-mono text-[11px] tracking-[0.05em] text-mist">{label}</span>
+      <span className="h-px flex-1 bg-rule" />
     </div>
   );
 }

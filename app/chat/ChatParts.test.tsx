@@ -4,6 +4,8 @@ import {
   ChatMessages,
   ChatNotAvailable,
   CrisisLine,
+  DaySeparator,
+  dayLabel,
   LimitGoodbye,
   RemainingNotice,
   remainingNotice,
@@ -92,3 +94,30 @@ describe('ChatNotAvailable', () => {
     expect(html).toContain('href="/dashboard"');
   });
 });
+
+describe('dayLabel', () => {
+  const today = '2026-09-25';
+
+  it('names today and yesterday', () => {
+    expect(dayLabel('2026-09-25', today)).toBe('Hoy');
+    expect(dayLabel('2026-09-24', today)).toBe('Ayer');
+  });
+
+  it('names older days by weekday and date', () => {
+    expect(dayLabel('2026-09-23', today)).toBe('miércoles 23 de septiembre');
+    expect(dayLabel('2026-08-31', today)).toBe('lunes 31 de agosto');
+  });
+
+  it('adds the year for a day of another year', () => {
+    expect(dayLabel('2025-12-31', '2026-01-02')).toBe('miércoles 31 de diciembre de 2025');
+    expect(dayLabel('2025-12-31', '2026-01-01')).toBe('Ayer');
+  });
+
+  it('renders as a labelled separator', () => {
+    const html = renderToString(<DaySeparator label="Ayer" />);
+
+    expect(html).toContain('role="separator"');
+    expect(html).toContain('>Ayer<');
+  });
+});
+

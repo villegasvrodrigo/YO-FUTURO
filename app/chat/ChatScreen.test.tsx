@@ -78,4 +78,32 @@ describe('ChatScreen (server render)', () => {
     const few = renderToString(<ChatScreen initialMessages={conversation} initialMessagesLeft={3} loadError={null} />);
     expect(few.indexOf('Te quedan 3 mensajes hoy')).toBeGreaterThan(few.indexOf('data-chat-composer'));
   });
+
+  it('shows "Ver días anteriores" only when there are earlier days', () => {
+    const withEarlier = renderToString(
+      <ChatScreen initialMessages={conversation} initialMessagesLeft={19} loadError={null} today="2026-09-25" hasEarlierDays />
+    );
+    const without = renderToString(
+      <ChatScreen initialMessages={conversation} initialMessagesLeft={19} loadError={null} today="2026-09-25" />
+    );
+
+    expect(withEarlier).toContain(escaped('Ver días anteriores'));
+    expect(without).not.toContain(escaped('Ver días anteriores'));
+  });
+
+  it('puts the "Hoy" separator above today\'s conversation, below the button', () => {
+    const html = renderToString(
+      <ChatScreen initialMessages={conversation} initialMessagesLeft={19} loadError={null} today="2026-09-25" hasEarlierDays />
+    );
+
+    expect(html.indexOf(escaped('Ver días anteriores'))).toBeLessThan(html.indexOf('aria-label="Hoy"'));
+    expect(html.indexOf('aria-label="Hoy"')).toBeLessThan(html.indexOf('Hola'));
+  });
+
+  it("turns off the browser's own scroll anchoring (the page is shifted by hand when days are added)", () => {
+    const html = renderToString(<ChatScreen initialMessages={conversation} initialMessagesLeft={19} loadError={null} />);
+
+    expect(html).toContain('[overflow-anchor:none]');
+  });
 });
+

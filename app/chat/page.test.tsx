@@ -30,7 +30,7 @@ function tables(results: Record<string, { data: unknown; error: { message: strin
       then: (resolve: (value: unknown) => unknown) => Promise.resolve(result).then(resolve),
       maybeSingle: () => Promise.resolve(result),
     };
-    for (const method of ['select', 'eq', 'order']) builder[method] = () => builder;
+    for (const method of ['select', 'eq', 'order', 'lt', 'limit']) builder[method] = () => builder;
     return builder;
   });
 }
@@ -137,4 +137,17 @@ describe('/chat', () => {
     expect(html).toContain('role="alert"');
     expect(html).toContain('<textarea');
   });
+
+  it('offers the earlier days only when there are any', async () => {
+    getUser.mockResolvedValue({ data: { user: { id: OWNER } } });
+    tables({
+      profiles: { data: { timezone: 'America/Mexico_City' }, error: null },
+      chat_messages: { data: [{ role: 'user', content: 'Hola', is_crisis: false, chat_date: '2026-09-20' }], error: null },
+    });
+    expect(renderToString(await ChatPage())).toContain(escaped('Ver días anteriores'));
+
+    tables({ profiles: { data: { timezone: 'America/Mexico_City' }, error: null }, chat_messages: { data: [], error: null } });
+    expect(renderToString(await ChatPage())).not.toContain(escaped('Ver días anteriores'));
+  });
 });
+
