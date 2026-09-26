@@ -66,7 +66,7 @@ afterEach(() => {
 describe('SPANISH_MX_RULE', () => {
   it('is the agreed text', () => {
     expect(SPANISH_MX_RULE).toBe(
-      'Escribe siempre en español de México, natural y sin modismos exagerados. Cuando le hables a la persona, háblale de tú: nunca de usted ni de vos. No uses formas de Argentina ni de España, como «sos», «tenés», «vosotros», «habéis», «vale» o «tío».'
+      'Escribe siempre en español de México, natural y sin modismos exagerados. Cuando le hables a la persona, háblale de tú: nunca de usted ni de vos. No uses formas de Argentina ni de España, como «sos», «tenés», «vosotros», «habéis», «vale» o «tío». Usa el género con el que la persona se refiere a sí misma en sus mensajes. No lo deduzcas de su nombre. Si no lo sabes, usa formas neutras (por ejemplo, «a solas» en vez de «solo» o «sola», «qué joven» en vez de «qué chica» o «qué chico»).'
     );
   });
 });

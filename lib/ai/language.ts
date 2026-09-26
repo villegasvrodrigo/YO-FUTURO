@@ -1,5 +1,5 @@
 // The language rule every AI instruction in the app ends with, kept in one place so it reads
 // the same everywhere (onboarding, data extraction, radiografía, daily email, tasks, insight,
-// chat and chat summary). The app is for people in Mexico.
+// chat and chat summary). The app is for people in Mexico; it never guesses gender from a name.
 export const SPANISH_MX_RULE =
-  'Escribe siempre en español de México, natural y sin modismos exagerados. Cuando le hables a la persona, háblale de tú: nunca de usted ni de vos. No uses formas de Argentina ni de España, como «sos», «tenés», «vosotros», «habéis», «vale» o «tío».';
+  'Escribe siempre en español de México, natural y sin modismos exagerados. Cuando le hables a la persona, háblale de tú: nunca de usted ni de vos. No uses formas de Argentina ni de España, como «sos», «tenés», «vosotros», «habéis», «vale» o «tío». Usa el género con el que la persona se refiere a sí misma en sus mensajes. No lo deduzcas de su nombre. Si no lo sabes, usa formas neutras (por ejemplo, «a solas» en vez de «solo» o «sola», «qué joven» en vez de «qué chica» o «qué chico»).';
