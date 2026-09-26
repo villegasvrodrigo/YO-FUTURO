@@ -79,10 +79,10 @@ function buildExtractionPrompt(): string {
 - "name": su nombre.
 - "currentAge": su edad actual.
 - "futureSelfAge": la edad de su yo futuro.
-- "focusArea": el área de vida que eligió trabajar. DEBE ser EXACTAMENTE una de estas cuatro palabras en minúsculas — nunca las palabras que la persona usó tal cual: "finanzas" (si eligió "Dinero y abundancia"), "relaciones" (si eligió "Amor y relaciones"), "paz" (si eligió "Paz"), "cuerpo" (si eligió "Mi cuerpo").
+- "focusArea": el área de vida que eligió trabajar. DEBE ser EXACTAMENTE una de estas cuatro palabras en minúsculas — nunca las palabras que la persona usó tal cual: "finanzas" (si eligió "Dinero y abundancia"), "relaciones" (si eligió "Amor y relaciones"), "paz" (si eligió "Paz"), "cuerpo" (si eligió "Tu cuerpo" o "Mi cuerpo").
 - "tone": el tono que mejor le convendría para sus mensajes diarios, inferido del registro emocional de toda la conversación — nunca se lo preguntaron directamente. DEBE ser EXACTAMENTE una de estas cuatro palabras en minúsculas, nunca una descripción: "motivador", "exigente", "tierno", "directo".
 - "values": una breve descripción de lo que valora, inferida de cómo describió a la versión de sí misma que quiere ser — nunca se lo preguntaron directamente. Escríbelo en PRIMERA PERSONA, como si la persona lo dijera de sí misma (ej. "Valoro la paz y la libertad", nunca "Valora la paz y la libertad").
-- "goals": un array de metas breves, inferidas de su visión a 6 meses, 1 año y a largo plazo — nunca se lo preguntaron directamente como lista. Escribe cada meta en PRIMERA PERSONA (ej. "Sanar mi relación con el dinero", nunca "Sanar su relación con el dinero").
+- "goals": un array de metas breves, inferidas de cómo le gustaría estar dentro de un año y de su visión a largo plazo — nunca se lo preguntaron directamente como lista. Escribe cada meta en PRIMERA PERSONA (ej. "Sanar mi relación con el dinero", nunca "Sanar su relación con el dinero").
 
 Responde solo con el JSON de estos siete campos, nada más.
 

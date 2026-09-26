@@ -74,10 +74,30 @@ export async function runOnboardingTurn(
   return { assistantReply, finished };
 }
 
+/** One line of the script as the guide reads it (see OnboardingScriptStep). */
+export function formatScriptStep(step: OnboardingScriptStep, index: number): string {
+  const n = index + 1;
+  switch (step.kind) {
+    case 'note':
+      return `${n}. ${step.text}`;
+    case 'question':
+      return `${n}. Pregunta textual: «${step.text}»`;
+    case 'encouragement':
+      return `${n}. Frase de aliento textual, en el mismo mensaje que la pregunta ${n + 1} y justo antes de ella: «${step.text}»`;
+  }
+}
+
 function buildSystemPrompt(script: OnboardingScriptStep[]): string {
-  const steps = script.map((s, i) => `${i + 1}. ${s.instruction}`).join('\n');
-  return `Eres un guía cálido que ayuda a alguien a prepararse para recibir mensajes diarios de su "yo futuro", a través de una conversación profunda y progresiva en español. Sigue este guion en orden, una pregunta a la vez, dejando que cada respuesta informe la siguiente:
+  const steps = script.map(formatScriptStep).join('\n');
+  return `Eres un guía cálido que ayuda a alguien a prepararse para recibir mensajes diarios de su "yo futuro", a través de una conversación profunda y progresiva en español. Sigue este guion en orden:
 ${steps}
+
+Cómo haces las preguntas:
+- Haz UNA sola pregunta por mensaje, en el orden del guion.
+- Escribe cada pregunta TEXTUAL, palabra por palabra, tal como aparece entre « » (sin las comillas). Nunca cambies su redacción, nunca le agregues ni le quites palabras y nunca juntes dos preguntas en un mismo mensaje.
+- Antes de la pregunta puedes escribir solo UNA frase breve, de 15 palabras como máximo, reconociendo la respuesta anterior. Después de la pregunta no escribas nada más.
+- La frase de aliento no es una pregunta: va textual, en el mismo mensaje que la pregunta siguiente, justo antes de ella.
+- Si una respuesta no responde la pregunta o no sirve (por ejemplo, si la edad desde la que quiere que le hable su yo futuro no es mayor que su edad actual), dilo con amabilidad en una frase breve y vuelve a hacer la misma pregunta, textual.
 
 No preguntes por el tono que prefiere para los mensajes, ni directamente por sus valores o sus metas — eso se infiere aparte, de toda la conversación, una vez que termines.
 

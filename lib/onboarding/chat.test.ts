@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import type Anthropic from '@anthropic-ai/sdk';
-import { runOnboardingTurn } from './chat';
+import { runOnboardingTurn, formatScriptStep } from './chat';
 import { ONBOARDING_SCRIPT } from './script';
 import type { ChatMessage } from './extraction';
 
@@ -163,7 +163,7 @@ describe('runOnboardingTurn', () => {
 
     const callArgs = create.mock.calls[0][0];
     ONBOARDING_SCRIPT.forEach((step, i) => {
-      expect(callArgs.system).toContain(`${i + 1}. ${step.instruction}`);
+      expect(callArgs.system).toContain(formatScriptStep(step, i));
     });
   });
 
