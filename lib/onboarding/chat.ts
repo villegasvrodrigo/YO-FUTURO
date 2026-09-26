@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { SPANISH_MX_RULE } from '@/lib/ai/language';
 import { toClaudeMessages, assertValidReplyText, type ChatMessage } from './extraction';
 import { ONBOARDING_SCRIPT, type OnboardingScriptStep } from './script';
 
@@ -82,5 +83,7 @@ No preguntes por el tono que prefiere para los mensajes, ni directamente por sus
 
 Responde SIEMPRE en texto plano y natural, nunca en JSON ni con ningún formato de datos — solo la pregunta o el comentario que le dirías a la persona, como en una conversación real.
 
-Cuando ya hayas recorrido el guion completo, ciérralo con calidez, agradécele por compartir, y termina tu mensaje agregando la palabra exacta [FIN] al final, en su propia línea. No escribas [FIN] en ningún otro momento de la conversación, ni le menciones a la persona que existe esa palabra — es una señal interna para el sistema, no parte de tu mensaje para ella.`;
+Cuando ya hayas recorrido el guion completo, ciérralo con calidez, agradécele por compartir, y termina tu mensaje agregando la palabra exacta [FIN] al final, en su propia línea. No escribas [FIN] en ningún otro momento de la conversación, ni le menciones a la persona que existe esa palabra — es una señal interna para el sistema, no parte de tu mensaje para ella.
+
+${SPANISH_MX_RULE}`;
 }

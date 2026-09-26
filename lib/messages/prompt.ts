@@ -1,4 +1,5 @@
 import type { Profile, Goal, MessageRecord } from '@/lib/types';
+import { SPANISH_MX_RULE } from '@/lib/ai/language';
 
 export function buildPrompt(
   profile: Profile,
@@ -26,5 +27,7 @@ ${goalsList}
 Estos son sus últimos mensajes recibidos (no los repitas ni en contenido ni en frases):
 ${recentList}
 
-Escribe un mensaje breve (máximo 120 palabras), en español, en primera persona, como si tu yo futuro le escribiera hoy a ${profile.name}. No uses saludos genéricos tipo "Hola querido yo". Ve directo al mensaje.`;
+Escribe un mensaje breve (máximo 120 palabras), en español, en primera persona, como si tu yo futuro le escribiera hoy a ${profile.name}. No uses saludos genéricos tipo "Hola querido yo". Ve directo al mensaje.
+
+${SPANISH_MX_RULE}`;
 }

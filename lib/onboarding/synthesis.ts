@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
+import { SPANISH_MX_RULE } from '@/lib/ai/language';
 import { toClaudeMessages, assertValidReplyText, type ChatMessage } from './extraction';
 
 const MODEL = 'claude-sonnet-5';
@@ -163,5 +164,7 @@ function buildSynthesisPrompt(): string {
 
 Responde con un JSON que tenga exactamente estos tres campos, cada uno con un texto cálido, específico y en español, que termine en punto.
 
-Si citas algo que la persona dijo, o algo que le decían (por ejemplo, una frase de su papá o de su mamá), escribe la cita entre comillas latinas « », así: le repetía «nunca alcanza». Nunca uses comillas rectas (") dentro de los textos.`;
+Si citas algo que la persona dijo, o algo que le decían (por ejemplo, una frase de su papá o de su mamá), escribe la cita entre comillas latinas « », así: le repetía «nunca alcanza». Nunca uses comillas rectas (") dentro de los textos.
+
+${SPANISH_MX_RULE}`;
 }

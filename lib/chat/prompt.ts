@@ -1,4 +1,5 @@
 import type { FocusArea, Tone } from '@/lib/types';
+import { SPANISH_MX_RULE } from '@/lib/ai/language';
 
 // Instructions and context for the chat with the yo futuro. The voice follows the daily
 // email's (lib/messages/prompt.ts, left untouched): same persona, first person, the tone the
@@ -72,7 +73,9 @@ Cuando haya una crisis:
 Marca la crisis solo en esas situaciones. La tristeza, el estrés, el cansancio o la frustración, sin nada de lo anterior, no son una crisis: acompáñalos con tu voz de siempre.
 
 Formato de tu respuesta
-Responde solo con un JSON con dos campos: "respuesta", el texto que verá la persona, y "crisis", true si hay una crisis y false si no.`;
+Responde solo con un JSON con dos campos: "respuesta", el texto que verá la persona, y "crisis", true si hay una crisis y false si no.
+
+${SPANISH_MX_RULE}`;
 
 function orUnknown(text: string | null): string {
   const trimmed = text?.trim();

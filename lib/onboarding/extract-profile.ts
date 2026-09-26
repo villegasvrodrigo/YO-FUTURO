@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { z } from 'zod';
+import { SPANISH_MX_RULE } from '@/lib/ai/language';
 import {
   toClaudeMessages,
   assertValidReplyText,
@@ -83,5 +84,7 @@ function buildExtractionPrompt(): string {
 - "values": una breve descripción de lo que valora, inferida de cómo describió a la versión de sí misma que quiere ser — nunca se lo preguntaron directamente. Escríbelo en PRIMERA PERSONA, como si la persona lo dijera de sí misma (ej. "Valoro la paz y la libertad", nunca "Valora la paz y la libertad").
 - "goals": un array de metas breves, inferidas de su visión a 6 meses, 1 año y a largo plazo — nunca se lo preguntaron directamente como lista. Escribe cada meta en PRIMERA PERSONA (ej. "Sanar mi relación con el dinero", nunca "Sanar su relación con el dinero").
 
-Responde solo con el JSON de estos siete campos, nada más.`;
+Responde solo con el JSON de estos siete campos, nada más.
+
+${SPANISH_MX_RULE}`;
 }
