@@ -13,10 +13,28 @@ export function isDueNow(deliveryHourLocal: number, timezone: string, nowUtc: Da
   return getLocalHour(timezone, nowUtc) === deliveryHourLocal;
 }
 
+// Same-day recovery: besides the people whose hour it is, each run also takes the ones whose
+// hour already passed today by at most this many hours. Someone whose message failed at their
+// hour (an AI outage, for example) gets it in one of the next runs, the same day. The route
+// skips anyone who already has today's message, so nobody ever gets two.
+export const CATCH_UP_HOURS = 4;
+
+/**
+ * How many hours after the person's delivery hour it is now, in their local day: 0 at their
+ * hour, 1 to 23 later that same day, null before their hour. It is always the same local day:
+ * after midnight the count starts over, so a day that was missed is never sent the next day.
+ * Throws (e.g. RangeError) if `timezone` isn't a valid IANA zone name.
+ */
+export function hoursPastDelivery(deliveryHourLocal: number, timezone: string, nowUtc: Date): number | null {
+  const late = getLocalHour(timezone, nowUtc) - deliveryHourLocal;
+  return late >= 0 ? late : null;
+}
+
 export interface DueProfileSummary {
   nowUtcIso: string;
   totalProfiles: number;
-  due: { id: string; timezone: string; localHour: number }[];
+  // hoursLate: 0 at their hour; 1 to CATCH_UP_HOURS when it's a same-day recovery.
+  due: { id: string; timezone: string; localHour: number; hoursLate: number }[];
   excluded: { id: string; timezone: string; error: string }[];
   // Profiles with their daily emails paused, whatever their hour: never due. dueThisHour
   // says whether it would have been their hour, so the log shows who was skipped for it.
@@ -24,7 +42,8 @@ export interface DueProfileSummary {
 }
 
 /**
- * Sorts every profile into "due this hour", "excluded" (invalid timezone) or "paused", and
+ * Sorts every profile into "due" (their hour, or up to CATCH_UP_HOURS after it today),
+ * "excluded" (invalid timezone) or "paused", and
  * records the local hour computed for each — the diagnostic detail a hand-wavy
  * `.filter(isDueNow)` throws away, needed to tell "nobody was due" apart from
  * "someone should have been but got silently skipped".
@@ -54,8 +73,9 @@ export function summarizeDueProfiles(
 
     try {
       const localHour = getLocalHour(profile.timezone, nowUtc);
-      if (localHour === profile.delivery_hour_local) {
-        due.push({ id: profile.id, timezone: profile.timezone, localHour });
+      const hoursLate = hoursPastDelivery(profile.delivery_hour_local, profile.timezone, nowUtc);
+      if (hoursLate !== null && hoursLate <= CATCH_UP_HOURS) {
+        due.push({ id: profile.id, timezone: profile.timezone, localHour, hoursLate });
       }
     } catch (err) {
       excluded.push({

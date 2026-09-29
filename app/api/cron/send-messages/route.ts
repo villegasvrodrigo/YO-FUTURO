@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { isSameLocalDay, summarizeDueProfiles } from '@/lib/messages/delivery';
+import { CATCH_UP_HOURS, isSameLocalDay, summarizeDueProfiles } from '@/lib/messages/delivery';
 import { generateMessage } from '@/lib/messages/generate';
 import { sendDailyEmail } from '@/lib/email/send';
 import { buildEmailText } from '@/lib/email/body';
@@ -39,11 +39,13 @@ export async function GET(request: NextRequest) {
   }
 
   const summary = summarizeDueProfiles(profiles as Profile[], now);
+  const catchUps = summary.due.filter((p) => p.hoursLate > 0).length;
   console.log(
-    `[cron] hora de referencia (UTC): ${summary.nowUtcIso} — perfiles con onboarding completo: ${summary.totalProfiles}, elegibles esta hora: ${summary.due.length}, excluidos por timezone inválida: ${summary.excluded.length}, en pausa: ${summary.paused.length}`
+    `[cron] hora de referencia (UTC): ${summary.nowUtcIso} — perfiles con onboarding completo: ${summary.totalProfiles}, elegibles esta hora: ${summary.due.length} (a su hora: ${summary.due.length - catchUps}, recuperación de hasta ${CATCH_UP_HOURS} h: ${catchUps}), excluidos por timezone inválida: ${summary.excluded.length}, en pausa: ${summary.paused.length}`
   );
   summary.due.forEach((p) => {
-    console.log(`[cron]   elegible: perfil ${p.id} (timezone=${p.timezone}, hora local=${p.localHour})`);
+    const when = p.hoursLate === 0 ? 'a su hora' : `recuperación, ${p.hoursLate} h después de su hora`;
+    console.log(`[cron]   elegible: perfil ${p.id} (timezone=${p.timezone}, hora local=${p.localHour}, ${when})`);
   });
   summary.paused
     .filter((p) => p.dueThisHour)
@@ -91,9 +93,11 @@ export async function GET(request: NextRequest) {
 
 // La spec pide 1 reintento si Claude falla; si el segundo intento también
 // falla se propaga el error para que quede como rechazo de este usuario
-// (registrado arriba) y se reintente en la corrida siguiente. No se
-// inserta fila en `messages` porque `content` es NOT NULL y no existe
-// contenido real que guardar.
+// (registrado arriba y contado en "failed"). No se inserta fila en `messages`
+// porque `content` es NOT NULL y no existe contenido real que guardar. Como no
+// queda mensaje de hoy, las corridas de las siguientes CATCH_UP_HOURS horas lo
+// vuelven a intentar (recuperación el mismo día); pasado ese margen, o si cambia
+// el día en su zona horaria, ese día se queda sin mensaje.
 async function generateWithRetry(
   profile: Profile,
   goals: Goal[],
@@ -137,8 +141,9 @@ async function processUser(
     isSameLocalDay(new Date(lastMessage.generated_at), now, profile.timezone)
   ) {
     // Already sent a message today (local calendar day) for this user —
-    // skip to avoid duplicate sends from DST fall-back repeated hours or
-    // an overlapping/retried cron invocation.
+    // skip to avoid duplicate sends: the same-day recovery runs (CATCH_UP_HOURS),
+    // DST fall-back repeated hours or an overlapping/retried cron invocation.
+    // Returning here also means today's tasks and insight are never generated twice.
     console.log(
       `[cron]   saltado: perfil ${profile.id} — ya se generó un mensaje hoy (mensaje ${lastMessage.id}, ${lastMessage.generated_at})`
     );

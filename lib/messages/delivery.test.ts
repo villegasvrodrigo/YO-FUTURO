@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  CATCH_UP_HOURS,
+  hoursPastDelivery,
   isDueNow,
   isSameLocalDay,
   getLocalDateString,
@@ -87,7 +89,7 @@ describe('summarizeDueProfiles', () => {
     const summary = summarizeDueProfiles(profiles, now);
 
     expect(summary.totalProfiles).toBe(2);
-    expect(summary.due).toEqual([{ id: 'a', timezone: 'America/Mexico_City', localHour: 8 }]);
+    expect(summary.due).toEqual([{ id: 'a', timezone: 'America/Mexico_City', localHour: 8, hoursLate: 0 }]);
     expect(summary.excluded).toEqual([]);
   });
 
@@ -127,7 +129,7 @@ describe('summarizeDueProfiles', () => {
 
       const summary = summarizeDueProfiles([profile], now);
 
-      expect(summary.due).toEqual([{ id: 'a', timezone: 'America/Mexico_City', localHour: 8 }]);
+      expect(summary.due).toEqual([{ id: 'a', timezone: 'America/Mexico_City', localHour: 8, hoursLate: 0 }]);
       expect(summary.paused).toEqual([]);
     });
 
@@ -214,3 +216,82 @@ describe('getLocalDateString', () => {
     expect(getLocalDateString(a, zone) === getLocalDateString(b, zone)).toBe(isSameLocalDay(a, b, zone));
   });
 });
+
+describe('same-day recovery (CATCH_UP_HOURS)', () => {
+  const mx = (id: string, hour: number, extra: Record<string, unknown> = {}) => ({
+    id,
+    timezone: 'America/Mexico_City',
+    delivery_hour_local: hour,
+    ...extra,
+  });
+  // 2026-09-29T15:30:00Z is 09:30 in Mexico City (UTC-6).
+  const nineThirty = new Date('2026-09-29T15:30:00Z');
+
+  it('is 4 hours', () => {
+    expect(CATCH_UP_HOURS).toBe(4);
+  });
+
+  it('takes the person whose hour it is (0 hours late)', () => {
+    const summary = summarizeDueProfiles([mx('now', 9)], nineThirty);
+
+    expect(summary.due).toEqual([{ id: 'now', timezone: 'America/Mexico_City', localHour: 9, hoursLate: 0 }]);
+  });
+
+  it('takes back the person whose hour was 1 hour ago (a failed run is retried)', () => {
+    expect(summarizeDueProfiles([mx('late1', 8)], nineThirty).due).toEqual([
+      { id: 'late1', timezone: 'America/Mexico_City', localHour: 9, hoursLate: 1 },
+    ]);
+  });
+
+  it('still takes a person 4 hours late, but not 5', () => {
+    const summary = summarizeDueProfiles([mx('late4', 5), mx('late5', 4)], nineThirty);
+
+    expect(summary.due.map((p) => [p.id, p.hoursLate])).toEqual([['late4', 4]]);
+  });
+
+  it('never takes someone whose hour has not come yet today', () => {
+    expect(summarizeDueProfiles([mx('later', 10), mx('evening', 20)], nineThirty).due).toEqual([]);
+  });
+
+  it('keeps the same filters: paused and invalid time zones are never taken, even within the 4 hours', () => {
+    const summary = summarizeDueProfiles(
+      [mx('paused', 8, { delivery_paused: true }), { id: 'bad', timezone: 'Not/AZone', delivery_hour_local: 8 }],
+      nineThirty
+    );
+
+    expect(summary.due).toEqual([]);
+    expect(summary.paused.map((p) => p.id)).toEqual(['paused']);
+    expect(summary.excluded.map((p) => p.id)).toEqual(['bad']);
+  });
+
+  it('starts over at local midnight: a late-night hour missed yesterday is not sent after midnight', () => {
+    // 2026-09-30T07:30:00Z is 01:30 on Sep 30 in Mexico City: 22:00 and 23:00 were yesterday.
+    const afterMidnight = new Date('2026-09-30T07:30:00Z');
+
+    expect(summarizeDueProfiles([mx('at22', 22), mx('at23', 23)], afterMidnight).due).toEqual([]);
+    // But 00:00 and 01:00 are today's: those are taken.
+    expect(summarizeDueProfiles([mx('at0', 0), mx('at1', 1)], afterMidnight).due.map((p) => [p.id, p.hoursLate])).toEqual([
+      ['at0', 1],
+      ['at1', 0],
+    ]);
+  });
+
+  it("uses each person's own time zone", () => {
+    // 15:30 UTC is 09:30 in Mexico City but 17:30 in Madrid.
+    const madrid = { id: 'madrid', timezone: 'Europe/Madrid', delivery_hour_local: 13 };
+
+    expect(summarizeDueProfiles([madrid], nineThirty).due).toEqual([
+      { id: 'madrid', timezone: 'Europe/Madrid', localHour: 17, hoursLate: 4 },
+    ]);
+  });
+});
+
+describe('hoursPastDelivery', () => {
+  it('is 0 at the hour, the hours after it the same day, and null before it', () => {
+    const at = (iso: string) => new Date(iso);
+    expect(hoursPastDelivery(8, 'America/Mexico_City', at('2026-09-29T14:10:00Z'))).toBe(0);
+    expect(hoursPastDelivery(8, 'America/Mexico_City', at('2026-09-29T17:59:00Z'))).toBe(3);
+    expect(hoursPastDelivery(8, 'America/Mexico_City', at('2026-09-29T13:59:00Z'))).toBeNull();
+  });
+});
+
