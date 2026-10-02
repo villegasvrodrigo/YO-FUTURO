@@ -395,6 +395,10 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
         </section>
 
         <section className="mt-10 flex flex-col gap-3 border-t border-rule pt-8">
+          <a href="/dashboard?bienvenida=1" className="self-start font-mono text-xs text-mist transition-colors hover:text-brass">
+            Ver la bienvenida otra vez
+          </a>
+
           <button
             type="button"
             onClick={logout}

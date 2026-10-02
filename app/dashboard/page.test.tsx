@@ -15,6 +15,9 @@ vi.mock('@/lib/insights/latest', () => ({ getLatestInsight: vi.fn() }));
 const { default: DashboardPage } = await import('./page');
 const { getLatestInsight } = await import('@/lib/insights/latest');
 
+const noParams = { searchParams: Promise.resolve({}) } as never;
+const replayParams = { searchParams: Promise.resolve({ bienvenida: '1' }) } as never;
+
 type Result = { data: unknown; error: { message: string } | null };
 
 // Each table answers when the test says so (release), and records when its query started.
@@ -59,7 +62,7 @@ describe('Inicio', () => {
   it('reads the profile, the latest email and the insight at the same time; the tasks wait only for the profile', async () => {
     const { started, releases } = deferredTables();
 
-    const page = DashboardPage();
+    const page = DashboardPage(noParams);
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     // Before any answer: profile, email and insight have all been asked for, tasks not yet.
@@ -96,7 +99,7 @@ describe('Inicio', () => {
 
   it('asks each table only once', async () => {
     const { started, releases } = deferredTables();
-    const page = DashboardPage();
+    const page = DashboardPage(noParams);
     releases.profiles({ data: { name: 'Rodrigo', timezone: 'America/Mexico_City', delivery_paused: false }, error: null });
     releases.messages({ data: null, error: null });
     releases.daily_tasks({ data: [], error: null });
@@ -113,7 +116,7 @@ describe('Inicio', () => {
       ['America/Mexico_City', { data: null, error: { message: 'boom' } }],
     ] as const) {
       const { started, releases } = deferredTables();
-      const page = DashboardPage();
+      const page = DashboardPage(noParams);
       releases.profiles({ data: { name: 'Rodrigo', timezone, delivery_paused: false }, error: null });
       releases.messages({ data: null, error: null });
       releases.daily_tasks(tasks);
@@ -128,6 +131,47 @@ describe('Inicio', () => {
   it('sends a visitor without a session to login', async () => {
     getUser.mockResolvedValue({ data: { user: null } });
 
-    await expect(DashboardPage()).rejects.toThrow('redirect:/login');
+    await expect(DashboardPage(noParams)).rejects.toThrow('redirect:/login');
+  });
+
+  describe('the welcome', () => {
+    const answerAll = (releases: Record<string, (r: Result) => void>) => {
+      releases.profiles({
+        data: { name: 'Rodrigo', timezone: 'America/Mexico_City', delivery_paused: false, future_self_age: 50, delivery_hour_local: 8 },
+        error: null,
+      });
+      releases.messages({ data: null, error: null });
+      releases.daily_tasks({ data: [], error: null });
+    };
+
+    it('shows once, the first time: an account without the mark sees it (existing accounts too)', async () => {
+      const { releases } = deferredTables();
+      const page = DashboardPage(noParams);
+      answerAll(releases);
+      const html = renderToString(await page);
+
+      expect(html).toContain('aria-label="Bienvenida"');
+      expect(html).toContain('Rodrigo, tu yo futuro ya te conoce.');
+      expect(html.replace(/<!-- -->/g, '')).toContain('PASO 1 DE 5');
+    });
+
+    it('does not show again once the account has the mark', async () => {
+      getUser.mockResolvedValue({ data: { user: { id: 'u1', user_metadata: { bienvenida_yo_futuro: '2026-10-02T12:00:00Z' } } } });
+      const { releases } = deferredTables();
+      const page = DashboardPage(noParams);
+      answerAll(releases);
+
+      expect(renderToString(await page)).not.toContain('aria-label="Bienvenida"');
+    });
+
+    it('shows again from Perfil\'s link, even with the mark', async () => {
+      getUser.mockResolvedValue({ data: { user: { id: 'u1', user_metadata: { bienvenida_yo_futuro: '2026-10-02T12:00:00Z' } } } });
+      const { releases } = deferredTables();
+      const page = DashboardPage(replayParams);
+      answerAll(releases);
+
+      expect(renderToString(await page)).toContain('aria-label="Bienvenida"');
+    });
   });
 });
+

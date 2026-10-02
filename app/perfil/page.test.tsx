@@ -82,6 +82,8 @@ describe('Perfil', () => {
     expect(started).toHaveLength(2);
     expect(html).toContain('Rodrigo');
     expect(html).toContain('Meditar');
+    // The link to see the welcome again.
+    expect(html).toMatch(/<a href="\/dashboard\?bienvenida=1"[^>]*>Ver la bienvenida otra vez<\/a>/);
   });
 
   it('still sends a person without a profile to the onboarding', async () => {

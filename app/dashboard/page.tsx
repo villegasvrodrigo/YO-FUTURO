@@ -10,6 +10,8 @@ import { DailyInsight, DailyInsightHint } from './DailyInsight';
 import { DailyMessage, PausedNotice } from './DailyMessage';
 import { messageDay } from '@/lib/messages/messageDay';
 import { getLatestInsight } from '@/lib/insights/latest';
+import { Welcome } from './Welcome';
+import { buildWelcomeSteps, senderAddress, WELCOME_REPLAY_PARAM, WELCOME_SEEN_KEY } from './welcomeContent';
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -36,7 +38,7 @@ async function readTodayTasks(supabase: Supabase, userId: string, timezone: stri
   }
 }
 
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: PageProps<'/dashboard'>) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect('/login');
@@ -45,7 +47,7 @@ export default async function DashboardPage() {
   // profile's time zone. (Each query is awaited once, inside its own async function: a
   // Supabase query runs again every time it is awaited.)
   const profileRead = (async () =>
-    (await supabase.from('profiles').select('name, timezone, delivery_paused').eq('id', user.id).maybeSingle()).data)();
+    (await supabase.from('profiles').select('name, timezone, delivery_paused, future_self_age, delivery_hour_local').eq('id', user.id).maybeSingle()).data)();
   const messageRead = (async () =>
     (
       await supabase
@@ -64,6 +66,24 @@ export default async function DashboardPage() {
   const [profile, latestMessage, tasks, latestInsight] = await Promise.all([profileRead, messageRead, tasksRead, insightRead]);
 
   const name = profile?.name?.trim();
+
+  // The welcome: once, the first time Inicio opens after the onboarding (existing accounts
+  // included: they have no mark yet), and again from Perfil's "Ver la bienvenida otra vez"
+  // (?bienvenida=1). The mark lives in the account's data, not in a table.
+  const replayWelcome = (await searchParams)[WELCOME_REPLAY_PARAM] === '1';
+  const showWelcome = replayWelcome || !user.user_metadata?.[WELCOME_SEEN_KEY];
+  const welcomeSteps = showWelcome
+    ? buildWelcomeSteps({
+        name: name ?? '',
+        futureSelfAge: profile?.future_self_age ?? null,
+        deliveryHour: profile?.delivery_hour_local ?? null,
+        timezone: profile?.timezone ?? null,
+        sender: senderAddress(process.env.RESEND_FROM_ADDRESS || 'Yo Futuro <hola@yofuturo.app>'),
+        hasAnyMessage: !!latestMessage,
+        chatEnabled: isChatEnabledFor(user.id),
+        now: new Date(),
+      })
+    : null;
   // Which day the latest message is from, in the user's time zone: the title and the line
   // under the message say "today" only when it really is today.
   const latestMessageDay = latestMessage ? messageDay(latestMessage.generated_at, profile?.timezone, new Date()) : null;
@@ -73,6 +93,7 @@ export default async function DashboardPage() {
       <main className="flex flex-1 justify-center px-6 pb-40 pt-8">
         <TasksProvider initialTasks={tasks}>
           <div className="w-full max-w-xl">
+            {welcomeSteps && <Welcome steps={welcomeSteps} name={name ?? ''} replay={replayWelcome} />}
             <div className="mb-10 flex items-center justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <p className="mb-0.5 font-mono text-[17px] uppercase tracking-[0.1em] text-mist sm:text-[21px]">
