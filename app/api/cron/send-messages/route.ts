@@ -4,6 +4,7 @@ import { CATCH_UP_HOURS, isSameLocalDay, summarizeDueProfiles } from '@/lib/mess
 import { generateMessage } from '@/lib/messages/generate';
 import { sendDailyEmail } from '@/lib/email/send';
 import { buildEmailText } from '@/lib/email/body';
+import { buildEmailHtml } from '@/lib/email/html';
 import { dailySubject } from '@/lib/email/subject';
 import { prepareDailyTasks } from '@/lib/tasks/daily';
 import { saveDailyTasks } from '@/lib/tasks/save';
@@ -187,10 +188,14 @@ async function processUser(
   // tarda más de 20 s. Con null, el correo sale exactamente como antes de las tareas.
   const dailyTasks = await prepareDailyTasks(supabase, profile, (goals as Goal[]) ?? [], content, now);
 
+  // Two versions of the same email: the plain text (as always) and the designed HTML. If the
+  // HTML can't be built, buildEmailHtml returns null and only the text goes out.
+  const emailTasks = dailyTasks?.tasks ?? null;
   const emailResult = await sendDailyEmail(
     email,
-    buildEmailText(content, dailyTasks?.tasks ?? null),
-    dailySubject(now, profile.timezone)
+    buildEmailText(content, emailTasks),
+    dailySubject(now, profile.timezone),
+    { html: buildEmailHtml(content, emailTasks, now, profile.timezone) }
   );
 
   await supabase

@@ -39,6 +39,8 @@ type QueryResult = { data: unknown; error: unknown };
 const EMAIL_WITHOUT_TASKS = `Hoy diste un paso más.\n\n— Tu yo futuro\n\n${dashboardLine()}`;
 // The cron runs at 2026-01-15 10:00 UTC and the test profiles use the UTC time zone.
 const SUBJECT = 'Tu mensaje de hoy · jueves 15 de enero';
+// Every email also carries its HTML version (buildEmailHtml), next to the plain text.
+const WITH_HTML = { html: expect.stringContaining('<!DOCTYPE html>') };
 
 /** One recorded Supabase call, so tests can assert what was written. */
 interface RecordedOp {
@@ -290,7 +292,7 @@ describe('GET /api/cron/send-messages — batch processing', () => {
 
     expect(generateMessage).toHaveBeenCalledTimes(1);
     expect(generateMessage).toHaveBeenCalledWith(profile, [goal], []);
-    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITHOUT_TASKS, SUBJECT);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITHOUT_TASKS, SUBJECT, WITH_HTML);
 
     const messageInsert = fake.ops.find(
       (op) => op.table === 'messages' && op.kind === 'insert'
@@ -483,7 +485,8 @@ describe('GET /api/cron/send-messages — batch processing', () => {
     expect(sendDailyEmail).toHaveBeenCalledWith(
       'user-ok@example.com',
       `Mensaje para el usuario sano.\n\n— Tu yo futuro\n\n${dashboardLine()}`,
-      SUBJECT
+      SUBJECT,
+      WITH_HTML
     );
     const inserts = fake.ops.filter((op) => op.table === 'messages' && op.kind === 'insert');
     expect(inserts).toHaveLength(1);
@@ -560,7 +563,7 @@ describe('GET /api/cron/send-messages — daily tasks', () => {
 
     expect(await response.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
     expect(sendDailyEmail).toHaveBeenCalledTimes(1);
-    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITHOUT_TASKS, SUBJECT);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITHOUT_TASKS, SUBJECT, WITH_HTML);
     expect(saveDailyTasks).not.toHaveBeenCalled();
   });
 
@@ -571,7 +574,7 @@ describe('GET /api/cron/send-messages — daily tasks', () => {
     const response = await GET(cronRequest());
 
     expect(await response.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
-    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITH_TASKS, SUBJECT);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITH_TASKS, SUBJECT, WITH_HTML);
   });
 
   it("sends the email with that day's date in the subject, in the user's time zone", async () => {
@@ -652,7 +655,7 @@ describe('GET /api/cron/send-messages — daily tasks', () => {
     const response = await GET(cronRequest());
 
     expect(await response.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
-    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITH_TASKS, SUBJECT);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-1@example.com', EMAIL_WITH_TASKS, SUBJECT, WITH_HTML);
     const update = fake.ops.find((op) => op.table === 'messages' && op.kind === 'update');
     expect(update?.payload).toEqual({ send_status: 'sent', sent_at: '2026-01-15T10:00:00.000Z' });
     expect(fake.ops.some((op) => op.table === 'email_log')).toBe(true);
@@ -1006,7 +1009,7 @@ describe('GET /api/cron/send-messages — paused daily emails', () => {
     expect(vi.mocked(prepareDailyTasks).mock.calls.map(([, p]) => p.id)).toEqual(['user-active']);
     expect(vi.mocked(prepareDailyInsight).mock.calls.map(([, p]) => p.id)).toEqual(['user-active']);
     expect(sendDailyEmail).toHaveBeenCalledTimes(1);
-    expect(sendDailyEmail).toHaveBeenCalledWith('user-active@example.com', EMAIL_WITHOUT_TASKS, SUBJECT);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-active@example.com', EMAIL_WITHOUT_TASKS, SUBJECT, WITH_HTML);
     const inserts = fake.ops.filter((op) => op.table === 'messages' && op.kind === 'insert');
     expect(inserts.map((op) => op.payload?.user_id)).toEqual(['user-active']);
   });
@@ -1022,8 +1025,8 @@ describe('GET /api/cron/send-messages — paused daily emails', () => {
 
     expect(await response.json()).toEqual({ processed: 2, succeeded: 2, failed: 0 });
     expect(sendDailyEmail).toHaveBeenCalledTimes(2);
-    expect(sendDailyEmail).toHaveBeenCalledWith('user-paused@example.com', EMAIL_WITHOUT_TASKS, SUBJECT);
-    expect(sendDailyEmail).toHaveBeenCalledWith('user-active@example.com', EMAIL_WITHOUT_TASKS, SUBJECT);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-paused@example.com', EMAIL_WITHOUT_TASKS, SUBJECT, WITH_HTML);
+    expect(sendDailyEmail).toHaveBeenCalledWith('user-active@example.com', EMAIL_WITHOUT_TASKS, SUBJECT, WITH_HTML);
   });
 
   it('logs how many are paused, and each paused user whose hour it was', async () => {

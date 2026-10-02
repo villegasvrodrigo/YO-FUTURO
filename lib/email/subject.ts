@@ -13,19 +13,28 @@ const MONTHS = [
 ];
 
 /**
+ * That day's date in the user's time zone, in Spanish: "miércoles 23 de septiembre". Null —
+ * never throws — when the time zone is invalid.
+ */
+export function dailyDateLabel(now: Date, timezone: string): string | null {
+  try {
+    const date = getLocalDateString(now, timezone);
+    const weekday = WEEKDAYS[mondayIndex(date)];
+    const day = Number(date.slice(8, 10));
+    const month = MONTHS[Number(date.slice(5, 7)) - 1];
+    return `${weekday} ${day} de ${month}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The subject of the daily email, with that day's date in the user's time zone, in
  * Spanish: "Tu mensaje de hoy · miércoles 23 de septiembre". A different subject each day
  * keeps Gmail from stacking the emails into one conversation. Never throws: with an
  * invalid time zone it falls back to the old fixed subject.
  */
 export function dailySubject(now: Date, timezone: string): string {
-  try {
-    const date = getLocalDateString(now, timezone);
-    const weekday = WEEKDAYS[mondayIndex(date)];
-    const day = Number(date.slice(8, 10));
-    const month = MONTHS[Number(date.slice(5, 7)) - 1];
-    return `Tu mensaje de hoy · ${weekday} ${day} de ${month}`;
-  } catch {
-    return FALLBACK_SUBJECT;
-  }
+  const label = dailyDateLabel(now, timezone);
+  return label ? `Tu mensaje de hoy · ${label}` : FALLBACK_SUBJECT;
 }
