@@ -52,6 +52,16 @@ describe('CHAT_INSTRUCTIONS', () => {
     expect(CHAT_INSTRUCTIONS.indexOf('Da los números de forma directa')).toBeGreaterThan(CHAT_INSTRUCTIONS.indexOf('Dale estos números'));
   });
 
+  it('never send the person to therapy, and send only medical, legal or money questions to a professional', () => {
+    expect(CHAT_INSTRUCTIONS).toContain(
+      '- No mandes a la persona a terapia ni le sugieras buscar un terapeuta o psicólogo para entender sus heridas, sus patrones o sus emociones: acompáñala tú, desde su radiografía y lo que te cuente. La app es parte de su proceso terapéutico.\n- No das diagnósticos médicos, medicamentos, dietas ni consejos legales o de inversión. Si te lo pide, dile con cariño que eso lo vea con un profesional de esa área (médico, nutriólogo, abogado o asesor financiero), y vuelve a lo que sí pueden hacer juntos.'
+    );
+    expect(CHAT_INSTRUCTIONS).not.toContain('No das diagnósticos, tratamientos, medicamentos');
+    // Both in "Límites", before the crisis protocol, which is unchanged.
+    expect(CHAT_INSTRUCTIONS.indexOf('No mandes a la persona a terapia')).toBeGreaterThan(CHAT_INSTRUCTIONS.indexOf('Límites'));
+    expect(CHAT_INSTRUCTIONS.indexOf('No mandes a la persona a terapia')).toBeLessThan(CHAT_INSTRUCTIONS.indexOf('Situaciones de crisis'));
+  });
+
   it('ask for the JSON the server reads', () => {
     expect(CHAT_INSTRUCTIONS).toContain('"respuesta"');
     expect(CHAT_INSTRUCTIONS).toContain('"crisis"');
