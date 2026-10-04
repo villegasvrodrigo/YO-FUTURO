@@ -11,7 +11,7 @@ vi.mock('@/lib/insights/daily', () => ({ prepareDailyInsight: vi.fn() }));
 vi.mock('@/lib/insights/save', () => ({ saveDailyInsight: vi.fn() }));
 
 type Row = Record<string, unknown>;
-const db: { profiles: Row[]; messages: Row[] } = { profiles: [], messages: [] };
+const db: { profiles: Row[]; messages: Row[]; failInserts: boolean } = { profiles: [], messages: [], failInserts: false };
 const profileFilters: unknown[][] = [];
 
 function fakeAdmin() {
@@ -19,6 +19,7 @@ function fakeAdmin() {
     from(table: string) {
       const filters: [string, unknown][] = [];
       let inserted: Row | null = null;
+      let insertError: { code: string; message: string } | null = null;
       const builder: Record<string, unknown> = {
         select: () => builder,
         eq: (column: string, value: unknown) => {
@@ -31,12 +32,20 @@ function fakeAdmin() {
         update: () => builder,
         insert: (row: Row) => {
           if (table === 'messages') {
-            inserted = { id: `m${db.messages.length + 1}`, generated_at: new Date().toISOString(), ...row };
-            db.messages.push(inserted);
+            // Like the real database: one message per person per day (messages_one_per_day).
+            const taken = db.messages.some((m) => m.user_id === row.user_id && m.message_date === row.message_date);
+            if (db.failInserts) {
+              insertError = { code: 'XX000', message: 'db down' };
+            } else if (taken) {
+              insertError = { code: '23505', message: 'duplicate key value violates unique constraint "messages_one_per_day"' };
+            } else {
+              inserted = { id: `m${db.messages.length + 1}`, generated_at: new Date().toISOString(), ...row };
+              db.messages.push(inserted);
+            }
           }
           return builder;
         },
-        single: async () => ({ data: inserted, error: null }),
+        single: async () => ({ data: inserted, error: insertError }),
         then: (resolve: (value: { data: unknown; error: null }) => unknown) => {
           let data: unknown = [];
           if (table === 'profiles') data = db.profiles;
@@ -99,6 +108,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {});
   db.profiles = [];
   db.messages = [];
+  db.failInserts = false;
   profileFilters.length = 0;
   vi.mocked(generateMessage).mockResolvedValue({ content: 'Tu mensaje de hoy.', modelUsed: 'claude-sonnet-5' });
   vi.mocked(sendDailyEmail).mockResolvedValue({ providerId: 'p1', status: 'sent', error: null });
@@ -198,4 +208,45 @@ describe('GET /api/cron/send-messages — same-day recovery', () => {
     expect(await runAt('2026-09-29T14:05:00Z')).toEqual({ processed: 1, succeeded: 1, failed: 0 });
     expect(sentTo()).toEqual(['ana@ejemplo.invalid']);
   });
+
+  it("saves each message with the person's local day", async () => {
+    // 2026-10-05T01:30Z is still 19:30 on Oct 4 in Mexico City: her hour, on the 4th.
+    db.profiles = [profile('ana', 19)];
+    await runAt('2026-10-05T01:30:00Z');
+
+    expect(db.messages).toHaveLength(1);
+    expect(db.messages[0].message_date).toBe('2026-10-04');
+  });
 });
+
+describe('GET /api/cron/send-messages — two triggers at the same time', () => {
+  it('two runs at once (GitHub and Supabase) send exactly one email; the second counts as a success', async () => {
+    db.profiles = [profile('ana', 8)];
+    vi.setSystemTime(new Date('2026-10-04T14:45:00Z'));
+    const request = () =>
+      GET(new NextRequest('http://localhost/api/cron/send-messages', { headers: { authorization: 'Bearer secreto' } }));
+
+    const [first, second] = await Promise.all([request(), request()]);
+
+    // Both read "no message today" before either saved one, so both asked the AI...
+    expect(generateMessage).toHaveBeenCalledTimes(2);
+    // ...but the database kept only one message, and only one email went out.
+    expect(db.messages).toHaveLength(1);
+    expect(sentTo()).toEqual(['ana@ejemplo.invalid']);
+    expect(prepareDailyTasks).toHaveBeenCalledTimes(1);
+    expect(prepareDailyInsight).toHaveBeenCalledTimes(1);
+    // Neither run reports a failure (no red alert for a duplicate).
+    expect(await first.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
+    expect(await second.json()).toEqual({ processed: 1, succeeded: 1, failed: 0 });
+  });
+
+  it('any other save error is still a failure', async () => {
+    db.profiles = [profile('ana', 8)];
+    // A different database error (not the one-per-day rule): the person counts as failed, as before.
+    db.failInserts = true;
+
+    expect(await runAt('2026-10-04T14:05:00Z')).toEqual({ processed: 1, succeeded: 0, failed: 1 });
+    expect(sendDailyEmail).not.toHaveBeenCalled();
+  });
+});
+

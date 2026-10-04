@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { CATCH_UP_HOURS, isSameLocalDay, summarizeDueProfiles } from '@/lib/messages/delivery';
+import { CATCH_UP_HOURS, getLocalDateString, isSameLocalDay, summarizeDueProfiles } from '@/lib/messages/delivery';
 import { generateMessage } from '@/lib/messages/generate';
 import { sendDailyEmail } from '@/lib/email/send';
 import { buildEmailText } from '@/lib/email/body';
@@ -19,6 +19,10 @@ export const maxDuration = 300;
 // Cuántos usuarios se procesan en paralelo por tanda. Limita la presión
 // sobre los rate limits de Claude y Resend.
 const CHUNK_SIZE = 10;
+
+// Postgres' code for a unique constraint violation. On `messages` it comes from the rule
+// "one message per person per day" (index messages_one_per_day on user_id + message_date).
+const UNIQUE_VIOLATION = '23505';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -157,11 +161,27 @@ async function processUser(
     messages
   );
 
+  // message_date: the person's local day. The database allows one message per person per day,
+  // so if two runs (GitHub and Supabase, for example) got here at the same time, only one
+  // can save it. The other gets the unique-rule error below and stops before any email.
   const { data: inserted, error: insertError } = await supabase
     .from('messages')
-    .insert({ user_id: profile.id, content, model_used: modelUsed, send_status: 'pending' })
+    .insert({
+      user_id: profile.id,
+      content,
+      model_used: modelUsed,
+      send_status: 'pending',
+      message_date: getLocalDateString(now, profile.timezone),
+    })
     .select()
     .single();
+
+  if ((insertError as { code?: string } | null)?.code === UNIQUE_VIOLATION) {
+    // Another run already saved today's message for this person: same as "already has a
+    // message today". No email, no tasks, no insight; it counts as a success.
+    console.log(`[cron]   saltado: perfil ${profile.id} — otra corrida ya guardó su mensaje de hoy`);
+    return;
+  }
 
   if (insertError || !inserted) {
     throw new Error(`No se pudo guardar el mensaje: ${insertError?.message}`);

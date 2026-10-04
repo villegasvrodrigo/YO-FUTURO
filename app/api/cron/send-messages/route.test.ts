@@ -302,6 +302,8 @@ describe('GET /api/cron/send-messages — batch processing', () => {
       content: 'Hoy diste un paso más.',
       model_used: 'claude-sonnet-5',
       send_status: 'pending',
+      // The user's local day (UTC here): the database allows one message per person per day.
+      message_date: '2026-01-15',
     });
 
     const messageUpdate = fake.ops.find(
@@ -598,6 +600,8 @@ describe('GET /api/cron/send-messages — daily tasks', () => {
       content: 'Hoy diste un paso más.',
       model_used: 'claude-sonnet-5',
       send_status: 'pending',
+      // The user's local day (UTC here): the database allows one message per person per day.
+      message_date: '2026-01-15',
     });
   });
 
@@ -943,6 +947,8 @@ describe('GET /api/cron/send-messages — daily insight', () => {
       content: 'Hoy diste un paso más.',
       model_used: 'claude-sonnet-5',
       send_status: 'pending',
+      // The user's local day (UTC here): the database allows one message per person per day.
+      message_date: '2026-01-15',
     });
   });
 
