@@ -12,15 +12,17 @@ import { messageDay } from '@/lib/messages/messageDay';
 import { getLatestInsight } from '@/lib/insights/latest';
 import { Welcome } from './Welcome';
 import { buildWelcomeSteps, senderAddress, WELCOME_REPLAY_PARAM, WELCOME_SEEN_KEY } from './welcomeContent';
+import { PreparingToday } from './PreparingToday';
+import { effectiveTimezone, isTodayMessage, type DayMessage } from '@/lib/daily/today';
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
-// Today's tasks: the ones saved for the user's LOCAL date today. Any problem here (bad
-// timezone, failed read) just means no tasks are shown; it never breaks the dashboard.
+// Today's tasks: the ones saved for the user's LOCAL date today (with the fallback time zone
+// when theirs is missing or invalid, like the rest of their day). A failed read just means no
+// tasks are shown; it never breaks the dashboard.
 async function readTodayTasks(supabase: Supabase, userId: string, timezone: string | null | undefined): Promise<DailyTask[]> {
-  if (!timezone) return [];
   try {
-    const today = getLocalDateString(new Date(), timezone);
+    const today = getLocalDateString(new Date(), effectiveTimezone(timezone));
     const { data, error } = await supabase
       .from('daily_tasks')
       .select('*')
@@ -86,7 +88,16 @@ export default async function DashboardPage({ searchParams }: PageProps<'/dashbo
     : null;
   // Which day the latest message is from, in the user's time zone: the title and the line
   // under the message say "today" only when it really is today.
-  const latestMessageDay = latestMessage ? messageDay(latestMessage.generated_at, profile?.timezone, new Date()) : null;
+  // Which day the latest message is, in the person's day (fallback time zone if theirs is
+  // invalid): today's is shown; any other day never is shown as today's — Inicio creates
+  // today's message instead (PreparingToday) and only shows the last one, dated, if that fails.
+  const now = new Date();
+  const timezone = effectiveTimezone(profile?.timezone);
+  const hasTodayMessage = isTodayMessage(latestMessage as DayMessage | null, now, timezone);
+  const computedDay = latestMessage ? messageDay(latestMessage.generated_at, timezone, now) : null;
+  const latestMessageDay = computedDay
+    ? { date: (latestMessage as DayMessage).message_date ?? computedDay.date, isToday: hasTodayMessage }
+    : null;
 
   return (
     <>
@@ -108,13 +119,17 @@ export default async function DashboardPage({ searchParams }: PageProps<'/dashbo
 
             {profile?.delivery_paused === true && <PausedNotice />}
 
-            <DailyMessage message={latestMessage} day={latestMessageDay} />
+            {hasTodayMessage ? (
+              <DailyMessage message={latestMessage} day={latestMessageDay} />
+            ) : (
+              <PreparingToday lastMessage={latestMessage} lastDay={latestMessageDay} />
+            )}
 
             <section className="mt-10">
               <h2 className="font-serif text-2xl text-parchment">Tus tareas de hoy</h2>
               <TaskListHint />
               <div className="mt-3 rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
-                <TaskList paused={profile?.delivery_paused === true} />
+                <TaskList />
               </div>
             </section>
 
@@ -122,7 +137,7 @@ export default async function DashboardPage({ searchParams }: PageProps<'/dashbo
               <h2 className="font-serif text-2xl text-parchment">Daily insight</h2>
               <DailyInsightHint insight={latestInsight} />
               <div className="mt-3">
-                <DailyInsight insight={latestInsight} paused={profile?.delivery_paused === true} />
+                <DailyInsight insight={latestInsight} />
               </div>
             </section>
 

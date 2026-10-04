@@ -9,6 +9,7 @@ vi.mock('next/navigation', () => ({
     throw new Error(`redirect:${url}`);
   }),
   usePathname: () => '/dashboard',
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 vi.mock('@/lib/insights/latest', () => ({ getLatestInsight: vi.fn() }));
 
@@ -124,7 +125,8 @@ describe('Inicio', () => {
       const html = renderToString(await page);
 
       expect(html).toContain('Rodrigo');
-      if (timezone === null) expect(started).not.toContain('daily_tasks');
+      // Without a time zone, today's tasks are still read, on the fallback time zone's day.
+      if (timezone === null) expect(started).toContain('daily_tasks');
     }
   });
 
@@ -171,6 +173,57 @@ describe('Inicio', () => {
       answerAll(releases);
 
       expect(renderToString(await page)).toContain('aria-label="Bienvenida"');
+    });
+  });
+
+  describe("today's message", () => {
+    // 2026-10-04 18:00 UTC is 12:00 on Oct 4 in Mexico City.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-04T18:00:00Z'));
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const open = async (message: unknown, paused = false) => {
+      getUser.mockResolvedValue({ data: { user: { id: 'u1', user_metadata: { bienvenida_yo_futuro: 'x' } } } });
+      const { releases } = deferredTables();
+      const page = DashboardPage(noParams);
+      releases.profiles({ data: { name: 'Rodrigo', timezone: 'America/Mexico_City', delivery_paused: paused }, error: null });
+      releases.messages({ data: message, error: null });
+      releases.daily_tasks({ data: [], error: null });
+      return renderToString(await page);
+    };
+    const escaped = (text: string) => renderToString(<>{text}</>);
+
+    it("shows today's message when it exists", async () => {
+      const html = await open({ id: 'm', content: 'El de hoy.', generated_at: '2026-10-04T14:00:00Z', message_date: '2026-10-04' });
+
+      expect(html).toContain('El de hoy.');
+      expect(html).not.toContain(escaped('Tu yo futuro te está escribiendo…'));
+    });
+
+    it("never shows yesterday's message as today's: it shows that today's is being written", async () => {
+      const html = await open({ id: 'm', content: 'El de ayer.', generated_at: '2026-10-03T14:00:00Z', message_date: '2026-10-03' });
+
+      expect(html).toContain(escaped('Tu yo futuro te está escribiendo…'));
+      expect(html).not.toContain('El de ayer.');
+    });
+
+    it('a new person with no message yet also sees it being written', async () => {
+      const html = await open(null);
+
+      expect(html).toContain(escaped('Tu yo futuro te está escribiendo…'));
+    });
+
+    it('a paused person also gets their day: the waiting card, and no "paused" empty copies', async () => {
+      const html = await open(null, true);
+
+      expect(html).toContain(escaped('Tu yo futuro te está escribiendo…'));
+      expect(html).toContain(escaped('Tus correos diarios están en pausa.'));
+      expect(html).not.toContain(escaped('tus tareas llegarán cuando los reanudes'));
+      expect(html).not.toContain(escaped('tu insight llegará cuando los reanudes'));
     });
   });
 });

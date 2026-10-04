@@ -1,6 +1,11 @@
 import type { createAdminClient } from '@/lib/supabase/admin';
 import { generateMessage } from '@/lib/messages/generate';
 import { getLocalDateString } from '@/lib/messages/delivery';
+import { FALLBACK_TIMEZONE } from '@/lib/chat/rules';
+import { prepareDailyTasks } from '@/lib/tasks/daily';
+import { saveDailyTasks } from '@/lib/tasks/save';
+import { prepareDailyInsight } from '@/lib/insights/daily';
+import { saveDailyInsight } from '@/lib/insights/save';
 import type { Goal, MessageRecord, Profile } from '@/lib/types';
 
 // The person's day: today's message (with its tasks and insight) belongs to their local
@@ -28,6 +33,29 @@ export const EMAIL_CLAIM_TIMEOUT_MINUTES = 15;
 /** The person's local day as "YYYY-MM-DD". Throws (RangeError) on an invalid time zone. */
 export function localToday(now: Date, timezone: string): string {
   return getLocalDateString(now, timezone);
+}
+
+/**
+ * The person's time zone if it is a valid one, otherwise the fallback (Mexico City, the same
+ * one the chat uses). Never throws. The app uses it so an odd time zone never leaves someone
+ * without their day; the cron keeps excluding those profiles from the email.
+ */
+export function effectiveTimezone(timezone: string | null | undefined): string {
+  if (timezone) {
+    try {
+      getLocalDateString(new Date(), timezone);
+      return timezone;
+    } catch {
+      // Invalid: fall back below.
+    }
+  }
+  return FALLBACK_TIMEZONE;
+}
+
+/** Whether `message` is the person's message of today (by message_date, or by when it was made). */
+export function isTodayMessage(message: DayMessage | null | undefined, now: Date, timezone: string): boolean {
+  if (!message) return false;
+  return findTodayMessage([message], localToday(now, timezone), timezone) !== null;
 }
 
 /**
@@ -127,4 +155,80 @@ export async function readTodayTasks(supabase: AdminClient, userId: string, toda
   if (error) throw new Error(`No se pudieron leer las tareas de hoy: ${error.message}`);
   const tasks = ((data as { description: string }[] | null) ?? []).map((task) => task.description);
   return tasks.length > 0 ? tasks : null;
+}
+
+export type CreateTodayResult =
+  // Today's message was already there (made earlier, by the cron, the app or another tab).
+  | { status: 'existing'; message: DayMessage }
+  // Made now. `makeInsight` writes and saves the day's insight: call it after answering, so
+  // nobody waits for it. It never throws.
+  | { status: 'created'; message: DayMessage; tasks: string[] | null; makeInsight: () => Promise<void> }
+  // The AI would have been called, but `allowGeneration` said no (the daily attempts limit).
+  | { status: 'limit' };
+
+/**
+ * Makes sure the person has today's message (their local day, with the fallback time zone),
+ * for the app: if it exists it is returned as is; if not, the message is written by the AI and
+ * saved WITHOUT claiming its email (so the cron sends that same message at their hour), then
+ * today's tasks. The insight is left for `makeInsight`. If another tab or run saved today's
+ * message first, that one is returned. `allowGeneration` runs right before calling the AI and
+ * may refuse it. Works the same for paused people (the pause is only the email). Throws when
+ * the AI fails twice or on a database error: nothing is saved then.
+ */
+export async function createTodayForPerson(
+  supabase: AdminClient,
+  profile: Profile,
+  now: Date,
+  options: { allowGeneration?: () => Promise<boolean> } = {}
+): Promise<CreateTodayResult> {
+  const timezone = effectiveTimezone(profile.timezone);
+  const person: Profile = { ...profile, timezone };
+  const today = localToday(now, timezone);
+
+  const { data: recent, error: recentError } = await supabase
+    .from('messages')
+    .select('*')
+    .eq('user_id', profile.id)
+    .order('generated_at', { ascending: false })
+    .limit(2);
+  if (recentError) throw new Error(`No se pudieron leer los mensajes: ${recentError.message}`);
+  const messages = (recent as DayMessage[] | null) ?? [];
+
+  const existing = findTodayMessage(messages, today, timezone);
+  if (existing) return { status: 'existing', message: existing };
+
+  if (options.allowGeneration && !(await options.allowGeneration())) return { status: 'limit' };
+
+  const { data: goalRows } = await supabase
+    .from('goals')
+    .select('*')
+    .eq('user_id', profile.id)
+    .eq('status', 'active')
+    // Stable order: the day's goal rotates by date and needs the same order every time.
+    .order('created_at', { ascending: true });
+  const goals = (goalRows as Goal[] | null) ?? [];
+
+  const { content, modelUsed } = await generateWithRetry(person, goals, messages);
+  const saved = await saveTodayMessage(supabase, { userId: profile.id, content, modelUsed, today, now, claimEmail: false });
+  if (saved.status === 'duplicate') {
+    const theirs = await readTodayMessage(supabase, profile.id, today);
+    if (!theirs) throw new Error('El mensaje de hoy existe pero no se pudo leer');
+    return { status: 'existing', message: theirs };
+  }
+
+  // Tasks now (they are part of what the person sees right away). Never throws: null if the
+  // AI fails or is slow, and the message stays without tasks (the cron tries them again).
+  const prepared = await prepareDailyTasks(supabase, person, goals, content, now);
+  if (prepared) await saveDailyTasks(profile.id, prepared.taskDate, prepared.tasks, supabase);
+
+  const makeInsight = async () => {
+    try {
+      const insight = await prepareDailyInsight(supabase, person, goals, content, now);
+      if (insight) await saveDailyInsight(profile.id, insight.insightDate, insight, supabase);
+    } catch (err) {
+      console.error(`[dia] sin insight: perfil ${profile.id}:`, err instanceof Error ? err.message : 'error desconocido');
+    }
+  };
+
+  return { status: 'created', message: saved.message, tasks: prepared?.tasks ?? null, makeInsight };
 }
