@@ -304,6 +304,8 @@ describe('GET /api/cron/send-messages — batch processing', () => {
       send_status: 'pending',
       // The user's local day (UTC here): the database allows one message per person per day.
       message_date: '2026-01-15',
+      // Saved already claimed by this run, which sends its email right away.
+      email_claimed_at: '2026-01-15T10:00:00.000Z',
     });
 
     const messageUpdate = fake.ops.find(
@@ -602,6 +604,8 @@ describe('GET /api/cron/send-messages — daily tasks', () => {
       send_status: 'pending',
       // The user's local day (UTC here): the database allows one message per person per day.
       message_date: '2026-01-15',
+      // Saved already claimed by this run, which sends its email right away.
+      email_claimed_at: '2026-01-15T10:00:00.000Z',
     });
   });
 
@@ -949,6 +953,8 @@ describe('GET /api/cron/send-messages — daily insight', () => {
       send_status: 'pending',
       // The user's local day (UTC here): the database allows one message per person per day.
       message_date: '2026-01-15',
+      // Saved already claimed by this run, which sends its email right away.
+      email_claimed_at: '2026-01-15T10:00:00.000Z',
     });
   });
 

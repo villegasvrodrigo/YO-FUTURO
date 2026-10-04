@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { CATCH_UP_HOURS, getLocalDateString, isSameLocalDay, summarizeDueProfiles } from '@/lib/messages/delivery';
-import { generateMessage } from '@/lib/messages/generate';
+import { CATCH_UP_HOURS, summarizeDueProfiles } from '@/lib/messages/delivery';
 import { sendDailyEmail } from '@/lib/email/send';
 import { buildEmailText } from '@/lib/email/body';
 import { buildEmailHtml } from '@/lib/email/html';
@@ -10,7 +9,17 @@ import { prepareDailyTasks } from '@/lib/tasks/daily';
 import { saveDailyTasks } from '@/lib/tasks/save';
 import { prepareDailyInsight } from '@/lib/insights/daily';
 import { saveDailyInsight } from '@/lib/insights/save';
-import type { Profile, Goal, MessageRecord } from '@/lib/types';
+import type { Profile, Goal } from '@/lib/types';
+import {
+  claimTodayEmail,
+  findTodayMessage,
+  generateWithRetry,
+  localToday,
+  readTodayMessage,
+  readTodayTasks,
+  saveTodayMessage,
+  type DayMessage,
+} from '@/lib/daily/today';
 
 // El batch por hora puede tardar: procesamos usuarios en tandas y cada uno
 // hace una llamada a Claude más un envío de email.
@@ -19,10 +28,6 @@ export const maxDuration = 300;
 // Cuántos usuarios se procesan en paralelo por tanda. Limita la presión
 // sobre los rate limits de Claude y Resend.
 const CHUNK_SIZE = 10;
-
-// Postgres' code for a unique constraint violation. On `messages` it comes from the rule
-// "one message per person per day" (index messages_one_per_day on user_id + message_date).
-const UNIQUE_VIOLATION = '23505';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -96,29 +101,16 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ processed: results.length, succeeded, failed });
 }
 
-// La spec pide 1 reintento si Claude falla; si el segundo intento también
-// falla se propaga el error para que quede como rechazo de este usuario
-// (registrado arriba y contado en "failed"). No se inserta fila en `messages`
-// porque `content` es NOT NULL y no existe contenido real que guardar. Como no
-// queda mensaje de hoy, las corridas de las siguientes CATCH_UP_HOURS horas lo
-// vuelven a intentar (recuperación el mismo día); pasado ese margen, o si cambia
-// el día en su zona horaria, ese día se queda sin mensaje.
-async function generateWithRetry(
-  profile: Profile,
-  goals: Goal[],
-  recentMessages: MessageRecord[]
-) {
-  try {
-    return await generateMessage(profile, goals, recentMessages);
-  } catch (err) {
-    console.error(
-      `[cron] primer intento de generación falló para el perfil ${profile.id}, reintentando:`,
-      err
-    );
-    return await generateMessage(profile, goals, recentMessages);
-  }
-}
-
+// Cada persona, a su hora (o dentro de la recuperación de CATCH_UP_HOURS):
+// - Si su mensaje de hoy (su día local) ya se mandó: no se hace nada.
+// - Si ya existe y su correo sigue pendiente (por ejemplo, lo creó la app): se aparta el
+//   correo y se manda ESE mensaje, con sus tareas de hoy. No se genera otro.
+// - Si no existe: se genera (con 1 reintento), se guarda ya apartado y se manda, como siempre.
+// Si la IA falla las dos veces se propaga el error: la persona cuenta en "failed" y, como no
+// queda mensaje, las corridas de las siguientes CATCH_UP_HOURS horas lo vuelven a intentar;
+// pasado ese margen, o si cambia el día en su zona horaria, ese día se queda sin correo.
+// Dos corridas al mismo tiempo nunca mandan dos correos: la base guarda un solo mensaje por
+// persona por día, y solo una corrida logra apartar su correo (email_claimed_at).
 async function processUser(
   supabase: ReturnType<typeof createAdminClient>,
   profile: Profile,
@@ -131,6 +123,7 @@ async function processUser(
     .eq('status', 'active')
     // Orden estable: la meta del día rota según la fecha y necesita el mismo orden siempre.
     .order('created_at', { ascending: true });
+  const activeGoals = (goals as Goal[]) ?? [];
 
   const { data: recentMessages } = await supabase
     .from('messages')
@@ -138,53 +131,50 @@ async function processUser(
     .eq('user_id', profile.id)
     .order('generated_at', { ascending: false })
     .limit(2);
+  const messages = (recentMessages as DayMessage[]) ?? [];
 
-  const messages = (recentMessages as MessageRecord[]) ?? [];
-  const lastMessage = messages[0];
-  if (
-    lastMessage &&
-    isSameLocalDay(new Date(lastMessage.generated_at), now, profile.timezone)
-  ) {
-    // Already sent a message today (local calendar day) for this user —
-    // skip to avoid duplicate sends: the same-day recovery runs (CATCH_UP_HOURS),
-    // DST fall-back repeated hours or an overlapping/retried cron invocation.
-    // Returning here also means today's tasks and insight are never generated twice.
-    console.log(
-      `[cron]   saltado: perfil ${profile.id} — ya se generó un mensaje hoy (mensaje ${lastMessage.id}, ${lastMessage.generated_at})`
-    );
-    return;
-  }
+  const today = localToday(now, profile.timezone);
+  let message = findTodayMessage(messages, today, profile.timezone);
+  // Whether this run made today's message now (then it also makes the tasks and insight).
+  let created = false;
+  // Whether this run holds today's email (and so must send it).
+  let claimed = false;
 
-  const { content, modelUsed } = await generateWithRetry(
-    profile,
-    (goals as Goal[]) ?? [],
-    messages
-  );
-
-  // message_date: the person's local day. The database allows one message per person per day,
-  // so if two runs (GitHub and Supabase, for example) got here at the same time, only one
-  // can save it. The other gets the unique-rule error below and stops before any email.
-  const { data: inserted, error: insertError } = await supabase
-    .from('messages')
-    .insert({
-      user_id: profile.id,
+  if (!message) {
+    const { content, modelUsed } = await generateWithRetry(profile, activeGoals, messages);
+    const saved = await saveTodayMessage(supabase, {
+      userId: profile.id,
       content,
-      model_used: modelUsed,
-      send_status: 'pending',
-      message_date: getLocalDateString(now, profile.timezone),
-    })
-    .select()
-    .single();
-
-  if ((insertError as { code?: string } | null)?.code === UNIQUE_VIOLATION) {
-    // Another run already saved today's message for this person: same as "already has a
-    // message today". No email, no tasks, no insight; it counts as a success.
-    console.log(`[cron]   saltado: perfil ${profile.id} — otra corrida ya guardó su mensaje de hoy`);
-    return;
+      modelUsed,
+      today,
+      now,
+      claimEmail: true,
+    });
+    if (saved.status === 'saved') {
+      message = saved.message;
+      created = true;
+      claimed = true;
+    } else {
+      // Another run (or the app) saved today's message first: use that one.
+      message = await readTodayMessage(supabase, profile.id, today);
+      if (!message) throw new Error('El mensaje de hoy existe pero no se pudo leer');
+    }
   }
 
-  if (insertError || !inserted) {
-    throw new Error(`No se pudo guardar el mensaje: ${insertError?.message}`);
+  if (!claimed) {
+    if (message.send_status !== 'pending') {
+      // Already sent (or tried) today — skip to avoid duplicate sends: the same-day recovery
+      // runs (CATCH_UP_HOURS), DST repeated hours or an overlapping cron invocation.
+      // Returning here also means today's tasks and insight are never generated twice.
+      console.log(
+        `[cron]   saltado: perfil ${profile.id} — ya se mandó el correo de hoy (mensaje ${message.id}, ${message.generated_at})`
+      );
+      return;
+    }
+    if (!(await claimTodayEmail(supabase, message.id, now))) {
+      console.log(`[cron]   saltado: perfil ${profile.id} — otra corrida está mandando su correo de hoy`);
+      return;
+    }
   }
 
   const { data: authUser } = await supabase.auth.admin.getUserById(profile.id);
@@ -193,24 +183,38 @@ async function processUser(
     throw new Error('Usuario sin email registrado');
   }
 
-  // Insight del día (opcional): arranca ya, al mismo tiempo que las tareas, pero el correo
-  // NO lo espera y no lo incluye. Se espera y se guarda al final, después del envío. Nunca
-  // lanza un error y devuelve null si algo falla o tarda más de 20 s; el .catch es solo una
-  // red de seguridad para que un rechazo inesperado no quede sin manejar mientras se envía.
-  const insightPromise = prepareDailyInsight(supabase, profile, (goals as Goal[]) ?? [], content, now).catch(
-    (err) => {
-      console.error(`[cron]   sin insight: perfil ${profile.id}:`, err);
-      return null;
-    }
-  );
+  const content = message.content;
 
-  // Tareas del día (opcionales): nunca lanza un error y devuelve null si algo falla o
-  // tarda más de 20 s. Con null, el correo sale exactamente como antes de las tareas.
-  const dailyTasks = await prepareDailyTasks(supabase, profile, (goals as Goal[]) ?? [], content, now);
+  // Insight del día (opcional), solo si este mensaje se acaba de crear aquí: quien creó un
+  // mensaje ya existente (la app) hizo también su insight. Arranca ya, al mismo tiempo que las
+  // tareas, pero el correo NO lo espera y no lo incluye; se guarda al final. Nunca lanza un
+  // error y devuelve null si algo falla o tarda más de 20 s; el .catch es solo una red de
+  // seguridad para que un rechazo inesperado no quede sin manejar mientras se envía.
+  const insightPromise = created
+    ? prepareDailyInsight(supabase, profile, activeGoals, content, now).catch((err) => {
+        console.error(`[cron]   sin insight: perfil ${profile.id}:`, err);
+        return null;
+      })
+    : Promise.resolve(null);
+
+  // Tareas del día: las que ya están guardadas para hoy (mensaje ya existente) o, si no hay,
+  // unas nuevas (opcionales: nunca lanza un error y devuelve null si algo falla o tarda más de
+  // 20 s; con null, el correo sale sin tareas).
+  let emailTasks: string[] | null = null;
+  let newTasks: Awaited<ReturnType<typeof prepareDailyTasks>> = null;
+  if (!created) {
+    emailTasks = await readTodayTasks(supabase, profile.id, today).catch((err) => {
+      console.error(`[cron]   no se pudieron leer las tareas de hoy: perfil ${profile.id}:`, err);
+      return null;
+    });
+  }
+  if (!emailTasks) {
+    newTasks = await prepareDailyTasks(supabase, profile, activeGoals, content, now);
+    emailTasks = newTasks?.tasks ?? null;
+  }
 
   // Two versions of the same email: the plain text (as always) and the designed HTML. If the
   // HTML can't be built, buildEmailHtml returns null and only the text goes out.
-  const emailTasks = dailyTasks?.tasks ?? null;
   const emailResult = await sendDailyEmail(
     email,
     buildEmailText(content, emailTasks),
@@ -224,19 +228,19 @@ async function processUser(
       send_status: emailResult.status,
       sent_at: emailResult.status === 'sent' ? new Date().toISOString() : null,
     })
-    .eq('id', inserted.id);
+    .eq('id', message.id);
 
   await supabase.from('email_log').insert({
-    message_id: inserted.id,
+    message_id: message.id,
     provider_id: emailResult.providerId,
     status: emailResult.status,
     error: emailResult.error,
   });
 
-  // Tareas del día: se guardan al final, ya con el mensaje y su log cerrados. Nunca lanza
-  // un error: si falla, solo queda registrado.
-  if (dailyTasks) {
-    await saveDailyTasks(profile.id, dailyTasks.taskDate, dailyTasks.tasks, supabase);
+  // Tareas nuevas: se guardan al final, ya con el mensaje y su log cerrados. Nunca lanza un
+  // error: si falla, solo queda registrado.
+  if (newTasks) {
+    await saveDailyTasks(profile.id, newTasks.taskDate, newTasks.tasks, supabase);
   }
 
   // Insight del día: se espera y se guarda hasta aquí, con el correo ya enviado. Nunca lanza
@@ -246,5 +250,7 @@ async function processUser(
     await saveDailyInsight(profile.id, dailyInsight.insightDate, dailyInsight, supabase);
   }
 
-  console.log(`[cron]   enviado: perfil ${profile.id} (mensaje ${inserted.id}, email status=${emailResult.status})`);
+  console.log(
+    `[cron]   enviado: perfil ${profile.id} (mensaje ${message.id}${created ? '' : ', ya existía'}, email status=${emailResult.status})`
+  );
 }
