@@ -186,13 +186,13 @@ describe('Inicio', () => {
       vi.useRealTimers();
     });
 
-    const open = async (message: unknown, paused = false) => {
+    const open = async (message: unknown, paused = false, tasks: unknown[] = []) => {
       getUser.mockResolvedValue({ data: { user: { id: 'u1', user_metadata: { bienvenida_yo_futuro: 'x' } } } });
       const { releases } = deferredTables();
       const page = DashboardPage(noParams);
       releases.profiles({ data: { name: 'Rodrigo', timezone: 'America/Mexico_City', delivery_paused: paused }, error: null });
       releases.messages({ data: message, error: null });
-      releases.daily_tasks({ data: [], error: null });
+      releases.daily_tasks({ data: tasks, error: null });
       return renderToString(await page);
     };
     const escaped = (text: string) => renderToString(<>{text}</>);
@@ -225,6 +225,48 @@ describe('Inicio', () => {
       expect(html).not.toContain(escaped('tus tareas llegarán cuando los reanudes'));
       expect(html).not.toContain(escaped('tu insight llegará cuando los reanudes'));
     });
+
+    const task = (id: string, position: number, description: string) => ({
+      id,
+      user_id: 'u1',
+      task_date: '2026-10-04',
+      position,
+      description,
+      completed: false,
+      completed_at: null,
+      created_at: '',
+    });
+    const justCreated = { id: 'm', content: 'Recién escrito.', generated_at: '2026-10-04T17:59:30Z', message_date: '2026-10-04' };
+
+    it('right after the app creates the message: its tasks are there, and the insight says it is on its way', async () => {
+      vi.mocked(getLatestInsight).mockResolvedValue({ insightDate: '2026-10-03', content: 'El insight de ayer.' });
+
+      const html = await open(justCreated, false, [task('t1', 1, 'Tarea uno.'), task('t2', 2, 'Tarea dos.')]);
+
+      expect(html).toContain('Recién escrito.');
+      expect(html).toContain('Tarea uno.');
+      expect(html).toContain('Tarea dos.');
+      expect(html).not.toContain(escaped('Tus tareas llegan con tu mensaje de hoy.'));
+      expect(html).toContain(escaped('Tu insight está en camino…'));
+      expect(html).not.toContain('El insight de ayer.');
+    });
+
+    it("as soon as today's insight exists, it is shown instead of the waiting line", async () => {
+      vi.mocked(getLatestInsight).mockResolvedValue({ insightDate: '2026-10-04', content: 'El insight de hoy.' });
+
+      const html = await open(justCreated);
+
+      expect(html).toContain(escaped('El insight de hoy.'));
+      expect(html).not.toContain(escaped('Tu insight está en camino…'));
+    });
+
+    it('if the insight never comes, after a few minutes Inicio stops waiting and shows the card as usual', async () => {
+      vi.mocked(getLatestInsight).mockResolvedValue({ insightDate: '2026-10-03', content: 'El insight de ayer.' });
+
+      const html = await open({ ...justCreated, generated_at: '2026-10-04T17:50:00Z' });
+
+      expect(html).not.toContain(escaped('Tu insight está en camino…'));
+      expect(html).toContain('El insight de ayer.');
+    });
   });
 });
-

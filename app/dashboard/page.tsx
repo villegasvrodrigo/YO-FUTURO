@@ -13,7 +13,9 @@ import { getLatestInsight } from '@/lib/insights/latest';
 import { Welcome } from './Welcome';
 import { buildWelcomeSteps, senderAddress, WELCOME_REPLAY_PARAM, WELCOME_SEEN_KEY } from './welcomeContent';
 import { PreparingToday } from './PreparingToday';
-import { effectiveTimezone, isTodayMessage, type DayMessage } from '@/lib/daily/today';
+import { effectiveTimezone, isTodayMessage, localToday, type DayMessage } from '@/lib/daily/today';
+import { InsightOnTheWay } from './InsightOnTheWay';
+import { insightOnTheWay, tasksVersion } from './todayRefresh';
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -98,11 +100,22 @@ export default async function DashboardPage({ searchParams }: PageProps<'/dashbo
   const latestMessageDay = computedDay
     ? { date: (latestMessage as DayMessage).message_date ?? computedDay.date, isToday: hasTodayMessage }
     : null;
+  // Right after the app creates today's message, its insight is still being written: Inicio
+  // says so and refreshes itself until it arrives (InsightOnTheWay).
+  const waitingForInsight = insightOnTheWay({
+    hasTodayMessage,
+    messageGeneratedAt: latestMessage?.generated_at,
+    latestInsightDate: latestInsight?.insightDate,
+    today: localToday(now, timezone),
+    now,
+  });
 
   return (
     <>
       <main className="flex flex-1 justify-center px-6 pb-40 pt-8">
-        <TasksProvider initialTasks={tasks}>
+        {/* Keyed by which tasks there are: when today's tasks arrive (Inicio refreshed after
+            creating today's message), the list starts over with them; checking a box keeps it. */}
+        <TasksProvider key={tasksVersion(tasks)} initialTasks={tasks}>
           <div className="w-full max-w-xl">
             {welcomeSteps && <Welcome steps={welcomeSteps} name={name ?? ''} replay={replayWelcome} />}
             <div className="mb-10 flex items-center justify-between gap-4">
@@ -135,9 +148,9 @@ export default async function DashboardPage({ searchParams }: PageProps<'/dashbo
 
             <section className="mt-8">
               <h2 className="font-serif text-2xl text-parchment">Daily insight</h2>
-              <DailyInsightHint insight={latestInsight} />
+              {!waitingForInsight && <DailyInsightHint insight={latestInsight} />}
               <div className="mt-3">
-                <DailyInsight insight={latestInsight} />
+                {waitingForInsight ? <InsightOnTheWay /> : <DailyInsight insight={latestInsight} />}
               </div>
             </section>
 
