@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { disablePush, enablePush, pushStatus, type PushStatus } from './push';
+import { disablePush, enablePush, pushStatus, sendTestPush, type PushStatus, type TestPushResult } from './push';
 
 export const PUSH_COPY: Record<Exclude<PushStatus, 'cargando'>, string> = {
   navegador: 'Agrega la app a tu pantalla de inicio para recibir notificaciones.',
@@ -11,6 +11,11 @@ export const PUSH_COPY: Record<Exclude<PushStatus, 'cargando'>, string> = {
   inactivo: 'Recibe un aviso cuando tu yo futuro te escribe.',
 };
 export const PUSH_FAILED = 'No se pudieron activar. Inténtalo de nuevo.';
+export const TEST_PUSH_COPY: Record<TestPushResult, string> = {
+  enviado: 'Listo. En unos segundos debería llegar a tu teléfono.',
+  limite: 'Ya enviaste los 5 avisos de prueba de hoy. Puedes probar de nuevo mañana.',
+  error: 'No se pudo enviar el aviso de prueba. Inténtalo de nuevo en un momento.',
+};
 
 /** What the Notificaciones section shows (no state: tested on its own). */
 export function PushButtonView({
@@ -19,12 +24,18 @@ export function PushButtonView({
   error,
   onEnable,
   onDisable,
+  testBusy = false,
+  testResult = null,
+  onTest = () => {},
 }: {
   status: PushStatus;
   busy: boolean;
   error: string | null;
   onEnable: () => void;
   onDisable: () => void;
+  testBusy?: boolean;
+  testResult?: TestPushResult | null;
+  onTest?: () => void;
 }) {
   return (
     <section className="mt-8 rounded border-t-2 border-brass-dim bg-dusk-2 px-7 py-7">
@@ -49,6 +60,27 @@ export function PushButtonView({
           {error}
         </p>
       )}
+      {/* Only once this phone has them on: a test notice to the person's own phones. */}
+      {status === 'activo' && (
+        <div className="mt-6 border-t border-rule pt-5">
+          <button
+            type="button"
+            onClick={onTest}
+            disabled={testBusy || busy}
+            className="rounded-lg border border-rule px-5 py-2.5 text-sm font-semibold text-parchment transition-colors hover:border-brass/60 disabled:opacity-50"
+          >
+            {testBusy ? 'Enviando…' : 'Enviar aviso de prueba'}
+          </button>
+          {testResult && (
+            <p
+              role={testResult === 'enviado' ? 'status' : 'alert'}
+              className={`mt-3 text-sm ${testResult === 'enviado' ? 'text-mist' : 'text-danger'}`}
+            >
+              {TEST_PUSH_COPY[testResult]}
+            </p>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -61,6 +93,8 @@ export function PushButton({ publicKey }: { publicKey: string }) {
   const [status, setStatus] = useState<PushStatus>('cargando');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [testBusy, setTestBusy] = useState(false);
+  const [testResult, setTestResult] = useState<TestPushResult | null>(null);
 
   useEffect(() => {
     pushStatus()
@@ -79,13 +113,26 @@ export function PushButton({ publicKey }: { publicKey: string }) {
     setBusy(false);
   }
 
+  async function test() {
+    setTestBusy(true);
+    setTestResult(null);
+    setTestResult(await sendTestPush());
+    setTestBusy(false);
+  }
+
   return (
     <PushButtonView
       status={status}
       busy={busy}
       error={error}
       onEnable={() => run(() => enablePush(publicKey))}
-      onDisable={() => run(disablePush)}
+      onDisable={() => {
+        setTestResult(null);
+        run(disablePush);
+      }}
+      testBusy={testBusy}
+      testResult={testResult}
+      onTest={test}
     />
   );
 }

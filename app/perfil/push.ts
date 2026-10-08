@@ -64,3 +64,16 @@ export async function disablePush(): Promise<PushStatus> {
   }
   return 'inactivo';
 }
+
+export type TestPushResult = 'enviado' | 'limite' | 'error';
+
+/** Perfil's "Enviar aviso de prueba": asks the server to send one to this person's phones. */
+export async function sendTestPush(): Promise<TestPushResult> {
+  try {
+    const res = await fetch('/api/push/prueba', { method: 'POST' });
+    if (res.ok) return 'enviado';
+    return res.status === 429 ? 'limite' : 'error';
+  } catch {
+    return 'error';
+  }
+}
