@@ -8,7 +8,7 @@
 // The notice's own first title; the page shows it as its main heading.
 export const PRIVACY_TITLE = 'Aviso de privacidad';
 
-export const PRIVACY_TEXT = `Última actualización: 24 de septiembre de 2026
+export const PRIVACY_TEXT = `Última actualización: 8 de octubre de 2026
 
 Yo Futuro es un proyecto personal en fase de prueba. Este aviso explica en palabras simples qué datos guardo, para qué, y cómo puedes borrarlos.
 
@@ -27,6 +27,8 @@ Mientras usas la app: guardo los mensajes diarios que recibes, tus tareas y si l
 Cuando usas el chat con tu yo futuro: guardo tus mensajes y las respuestas de tu yo futuro. También guardo un resumen corto de cada conversación, que escribe la inteligencia artificial, para que la próxima vez tu yo futuro recuerde lo importante. Las conversaciones y sus resúmenes se conservan mientras tengas tu cuenta.
 
 Si un mensaje tuyo parece una situación de crisis (por ejemplo, que quieres hacerte daño, que no quieres vivir o que alguien te está haciendo daño), la app lo marca para responderte con números de ayuda. Ese mensaje se guarda como el resto de la conversación, con esa marca. El resumen de esa conversación no guarda ningún detalle de la crisis: solo anota que fue un momento difícil, para que tu yo futuro te pregunte con cuidado cómo estás.
+
+Si activas las notificaciones en tu teléfono: guardo la dirección que tu teléfono da para recibir avisos, para mandarte uno al día cuando tu yo futuro te escribe. El aviso pasa por el servicio de notificaciones de Apple o de Google y solo dice tu nombre, nunca el contenido de tu mensaje. Puedes desactivarlas cuando quieras desde tu perfil, y se borra al eliminar tu cuenta.
 
 ## Para qué lo uso:
 

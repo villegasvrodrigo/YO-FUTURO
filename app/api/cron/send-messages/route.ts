@@ -9,6 +9,7 @@ import { prepareDailyTasks } from '@/lib/tasks/daily';
 import { saveDailyTasks } from '@/lib/tasks/save';
 import { prepareDailyInsight } from '@/lib/insights/daily';
 import { saveDailyInsight } from '@/lib/insights/save';
+import { dailyPushPayload, sendPushToUser } from '@/lib/push/send';
 import type { Profile, Goal } from '@/lib/types';
 import {
   claimTodayEmail,
@@ -236,6 +237,12 @@ async function processUser(
     status: emailResult.status,
     error: emailResult.error,
   });
+
+  // Aviso del día en los teléfonos de la persona, justo después del correo y en la misma corrida
+  // que lo apartó: nunca dos. Sale aunque el correo haya fallado (el mensaje está en la app).
+  // Nunca lanza un error (el .catch es solo una red de seguridad): no puede tumbar el correo ni
+  // contar como "failed". Con las notificaciones apagadas o sin sus llaves, no hace nada.
+  await sendPushToUser(supabase, profile.id, dailyPushPayload(profile.name)).catch(() => null);
 
   // Tareas nuevas: se guardan al final, ya con el mensaje y su log cerrados. Nunca lanza un
   // error: si falla, solo queda registrado.

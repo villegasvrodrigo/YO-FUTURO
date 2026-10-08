@@ -94,4 +94,32 @@ describe('Perfil', () => {
 
     await expect(page).rejects.toThrow('redirect:/onboarding');
   });
+
+  describe('notifications', () => {
+    const openPerfil = async () => {
+      const { releases } = deferredTables();
+      const page = PerfilPage();
+      releases.profiles({ data: profile, error: null });
+      releases.goals({ data: [], error: null });
+      return renderToString(await page);
+    };
+
+    it('with notifications off (or without keys) nothing changes: no Notificaciones section', async () => {
+      expect(await openPerfil()).not.toContain('Notificaciones');
+
+      vi.stubEnv('PUSH_ENABLED', 'true');
+      expect(await openPerfil()).not.toContain('Notificaciones');
+      vi.unstubAllEnvs();
+    });
+
+    it('with them on and their keys, Perfil shows the Notificaciones section', async () => {
+      vi.stubEnv('PUSH_ENABLED', 'true');
+      vi.stubEnv('VAPID_PUBLIC_KEY', 'BPublica');
+      vi.stubEnv('VAPID_PRIVATE_KEY', 'privada');
+
+      expect(await openPerfil()).toContain('Notificaciones');
+      vi.unstubAllEnvs();
+    });
+  });
 });
+

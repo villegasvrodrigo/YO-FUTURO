@@ -12,13 +12,18 @@ export interface MemoryDb {
 }
 
 export function createMemoryDb(): MemoryDb {
-  return { tables: { profiles: [], messages: [], goals: [], daily_tasks: [], daily_insights: [], email_log: [] }, users: {}, failInserts: false };
+  return {
+    tables: { profiles: [], messages: [], goals: [], daily_tasks: [], daily_insights: [], email_log: [], push_subscriptions: [] },
+    users: {},
+    failInserts: false,
+  };
 }
 
 type Result = { data: unknown; error: unknown };
 
 // Unique rules, as in the real database.
 const UNIQUE: Record<string, string[]> = {
+  push_subscriptions: ['endpoint'],
   messages: ['user_id', 'message_date'],
   daily_tasks: ['user_id', 'task_date', 'position'],
   daily_insights: ['user_id', 'insight_date'],
@@ -28,7 +33,7 @@ class Query implements PromiseLike<Result> {
   private filters: [string, unknown][] = [];
   private ranges: [string, 'lt' | 'lte' | 'gte', unknown][] = [];
   private orExpr: string | null = null;
-  private mode: 'select' | 'insert' | 'update' = 'select';
+  private mode: 'select' | 'insert' | 'update' | 'delete' = 'select';
   private payload: Row | Row[] = {};
   private returning = false;
   private orderCol: string | null = null;
@@ -86,6 +91,10 @@ class Query implements PromiseLike<Result> {
     this.payload = values;
     return this;
   }
+  delete() {
+    this.mode = 'delete';
+    return this;
+  }
   single() {
     return this.run().then(({ data, error }) => ({ data: Array.isArray(data) ? (data[0] ?? null) : data, error }));
   }
@@ -141,6 +150,11 @@ class Query implements PromiseLike<Result> {
       }));
       rows.push(...added);
       return { data: this.returning ? added.map((row) => ({ ...row })) : null, error: null };
+    }
+    if (this.mode === 'delete') {
+      const gone = rows.filter((row) => this.matches(row));
+      this.db.tables[this.table] = rows.filter((row) => !gone.includes(row));
+      return { data: this.returning ? gone : null, error: null };
     }
     if (this.mode === 'update') {
       const hit = rows.filter((row) => this.matches(row));

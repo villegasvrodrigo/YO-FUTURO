@@ -19,7 +19,7 @@ describe('middleware matcher', () => {
     }
   );
 
-  it.each(['/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-maskable-512.png', '/icon.png', '/apple-icon.png'])(
+  it.each(['/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-maskable-512.png', '/icon.png', '/apple-icon.png', '/sw.js'])(
     'leaves %s out, so the phone can install the app with or without a session',
     (pathname) => {
       expect(runsOn(pathname)).toBe(false);

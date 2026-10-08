@@ -38,4 +38,14 @@ describe('the privacy notice text', () => {
 
     expect(html.split('Aviso de privacidad').length - 1).toBe(1);
   });
+
+  it('says what is kept if notifications are turned on', async () => {
+    const { PRIVACY_TEXT } = await import('./content');
+
+    expect(PRIVACY_TEXT).toContain(
+      'Si activas las notificaciones en tu teléfono: guardo la dirección que tu teléfono da para recibir avisos'
+    );
+    expect(PRIVACY_TEXT).toContain('nunca el contenido de tu mensaje');
+  });
 });
+

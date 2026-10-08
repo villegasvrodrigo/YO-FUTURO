@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import { PushButton } from './PushButton';
+import type { PushClientConfig } from '@/lib/push/config';
 import { createClient } from '@/lib/supabase/browser';
 import { validateProfileStep, validateDeliveryHour } from '@/lib/onboarding/validate';
 import { HOUR_OPTIONS, hourLabel } from '@/lib/messages/hourLabel';
@@ -33,7 +35,16 @@ const TONE_OPTIONS: { value: Tone; label: string }[] = [
   { value: 'directo', label: 'Directo' },
 ];
 
-export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[] }) {
+export function PerfilForm({
+  profile,
+  goals,
+  push = { enabled: false, publicKey: '' },
+}: {
+  profile: Profile;
+  goals: Goal[];
+  // Notifications: only shown when they are on (PUSH_ENABLED with its keys).
+  push?: PushClientConfig;
+}) {
   const [name, setName] = useState(profile.name);
   const [currentAge, setCurrentAge] = useState(profile.current_age);
   const [futureSelfAge, setFutureSelfAge] = useState(profile.future_self_age);
@@ -393,6 +404,8 @@ export function PerfilForm({ profile, goals }: { profile: Profile; goals: Goal[]
             </button>
           </div>
         </section>
+
+        {push.enabled && <PushButton publicKey={push.publicKey} />}
 
         <section className="mt-10 flex flex-col gap-3 border-t border-rule pt-8">
           <a href="/dashboard?bienvenida=1" className="self-start font-mono text-xs text-mist transition-colors hover:text-brass">

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { BottomNav } from '@/app/_components/BottomNav';
 import { isChatEnabledFor } from '@/lib/chat/access';
 import { PerfilForm } from './PerfilForm';
+import { pushClientConfig } from '@/lib/push/config';
 
 export default async function PerfilPage() {
   const supabase = await createClient();
@@ -19,7 +20,7 @@ export default async function PerfilPage() {
 
   return (
     <>
-      <PerfilForm profile={profile} goals={goals ?? []} />
+      <PerfilForm profile={profile} goals={goals ?? []} push={pushClientConfig()} />
       <BottomNav chatEnabled={isChatEnabledFor(user.id)} />
     </>
   );
