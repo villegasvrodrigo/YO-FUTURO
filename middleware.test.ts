@@ -19,6 +19,13 @@ describe('middleware matcher', () => {
     }
   );
 
+  it.each(['/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-maskable-512.png', '/icon.png', '/apple-icon.png'])(
+    'leaves %s out, so the phone can install the app with or without a session',
+    (pathname) => {
+      expect(runsOn(pathname)).toBe(false);
+    }
+  );
+
   it('leaves static files out, as before', () => {
     expect(runsOn('/_next/static/chunk.js')).toBe(false);
     expect(runsOn('/favicon.ico')).toBe(false);

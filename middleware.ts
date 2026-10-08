@@ -55,6 +55,8 @@ export async function middleware(request: NextRequest) {
 
 // /api/ routes are left out: each one checks the session (or the cron secret) itself and
 // answers with JSON, so a missing session must never become an HTML redirect to /login.
+// The manifest and the app icons are left out too: the phone fetches them to install the app,
+// with or without a session, and a redirect there would break the installation.
 export const config = {
-  matcher: ['/((?!api/|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!api/|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/|icon.png|apple-icon.png).*)'],
 };

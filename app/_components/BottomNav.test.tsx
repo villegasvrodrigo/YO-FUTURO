@@ -62,4 +62,14 @@ describe('BottomNav', () => {
     expect(hidden).toMatch(/class="[^"]*\bhidden\b/);
     expect(hidden).not.toMatch(/class="[^"]*\bflex\b/);
   });
+
+  it('the bar and its notice keep clear of the iPhone home indicator in full screen', async () => {
+    const { NOTICE_POSITION, BOTTOM_NAV_SPACE } = await import('./BottomNav');
+    const html = renderToString(<BottomNav />);
+
+    expect(html).toContain('bottom-[calc(1.25rem+env(safe-area-inset-bottom))]');
+    expect(NOTICE_POSITION).toContain('env(safe-area-inset-bottom)');
+    expect(BOTTOM_NAV_SPACE).toContain('env(safe-area-inset-bottom)');
+  });
 });
+

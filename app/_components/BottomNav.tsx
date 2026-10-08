@@ -60,6 +60,10 @@ function UserIcon() {
 // lo que está justo encima de ella.
 export const BOTTOM_NAV_SPACE = 'calc(6rem + env(safe-area-inset-bottom))';
 
+// Where the "Próximamente" notice floats: just above the bar, also clear of the iPhone's home
+// indicator when the app runs full screen.
+export const NOTICE_POSITION = 'bottom-[calc(6rem+env(safe-area-inset-bottom))]';
+
 const itemClass =
   'flex flex-col items-center gap-1 rounded-full px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide transition-colors';
 
@@ -138,7 +142,7 @@ export function BottomNav({
   return (
     <>
       {notice && (
-        <div className="fixed inset-x-0 bottom-24 z-40 flex justify-center px-4">
+        <div className={`fixed inset-x-0 ${NOTICE_POSITION} z-40 flex justify-center px-4`}>
           <p
             role="status"
             className="rounded-lg border border-brass/30 bg-dusk-2 px-3.5 py-2 text-xs text-brass shadow-lg"
