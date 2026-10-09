@@ -26,7 +26,7 @@ describe('DeliveryPauseSection (server render)', () => {
   it('explains what the pause does, and shows no result message before any click', () => {
     const html = renderToString(<DeliveryPauseSection profileId="p1" initialPaused={false} />);
 
-    expect(html).toContain(escaped('no recibirás mensaje, tareas ni insight'));
+    expect(html).toContain(escaped('Mientras estén en pausa no recibirás el correo ni el aviso diario. Tu mensaje y tus tareas siguen apareciendo en la app, y tu historial se queda igual.'));
     expect(html).not.toContain('role="alert"');
     expect(html).not.toContain('role="status"');
   });

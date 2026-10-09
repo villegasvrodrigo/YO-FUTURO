@@ -41,7 +41,7 @@ export function DeliveryPauseSection({ profileId, initialPaused }: { profileId: 
         Tus correos diarios están <span className="font-semibold text-brass">{paused ? 'en pausa' : 'activos'}</span>.
       </p>
       <p className="font-mono text-xs text-mist">
-        Mientras estén en pausa no recibirás mensaje, tareas ni insight. Tu cuenta y tu historial se quedan igual.
+        Mientras estén en pausa no recibirás el correo ni el aviso diario. Tu mensaje y tus tareas siguen apareciendo en la app, y tu historial se queda igual.
       </p>
       {error && (
         <p role="alert" className="rounded-lg border border-danger/30 bg-danger/10 px-3.5 py-2.5 text-sm text-danger">
