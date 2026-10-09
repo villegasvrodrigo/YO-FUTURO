@@ -16,7 +16,7 @@ import type { Profile, Goal, GoalStatus, FocusArea, Tone } from '@/lib/types';
 
 const fieldClass =
   'w-full rounded-lg border border-rule bg-dusk-2 px-3.5 py-2.5 text-[15px] text-parchment placeholder:text-mist focus:border-brass focus:outline-none focus:ring-1 focus:ring-brass';
-const labelClass = 'mb-1.5 block text-sm font-medium text-parchment';
+const labelClass = 'mb-1.5 block text-[13px] font-medium text-mist/80';
 
 // Mismas opciones (y mismos valores) que ofrece el onboarding en su pantalla
 // de revisión — se mantienen en sincronía a propósito, ver ConfirmationScreen
