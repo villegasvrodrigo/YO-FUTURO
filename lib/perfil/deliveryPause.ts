@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export const PAUSE_SAVED = 'Listo: tus correos están en pausa. No recibirás mensaje, tareas ni insight hasta que los reanudes.';
+export const PAUSE_SAVED = 'Listo: tus correos están en pausa. No recibirás el correo ni el aviso diario hasta que los reanudes; tu mensaje y tus tareas siguen apareciendo en la app.';
 export const RESUME_SAVED =
   'Listo: tus correos se reanudaron. Si tu hora de envío de hoy ya pasó, el primero te llega mañana.';
 export const PAUSE_FAILED = 'No se pudo cambiar la pausa. Revisa tu conexión e intenta de nuevo.';

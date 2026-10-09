@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { setDeliveryPaused } from './deliveryPause';
+import { PAUSE_SAVED, setDeliveryPaused } from './deliveryPause';
 
 let errorSpy: ReturnType<typeof vi.spyOn>;
 
@@ -60,5 +60,13 @@ describe('setDeliveryPaused', () => {
 
     await expect(setDeliveryPaused(client, 'p1', false)).resolves.toBe(false);
     expect(errorSpy).toHaveBeenCalled();
+  });
+});
+
+describe('PAUSE_SAVED', () => {
+  it('says that only the email and the daily notice stop', () => {
+    expect(PAUSE_SAVED).toBe(
+      'Listo: tus correos están en pausa. No recibirás el correo ni el aviso diario hasta que los reanudes; tu mensaje y tus tareas siguen apareciendo en la app.'
+    );
   });
 });
