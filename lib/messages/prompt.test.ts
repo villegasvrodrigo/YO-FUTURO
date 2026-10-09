@@ -30,6 +30,12 @@ describe('buildPrompt', () => {
     expect(prompt).toContain('carrera');
   });
 
+  it('asks for no signature or farewell: the email adds the signature', () => {
+    expect(buildPrompt(profile, [], [])).toContain(
+      'No firmes el mensaje ni agregues despedidas como «Con cariño» o «Tu yo de X años»: la firma la agrega el correo.'
+    );
+  });
+
   it('lists active goals', () => {
     const goals: Goal[] = [
       { id: 'g1', user_id: 'u1', description: 'Lanzar mi startup', status: 'active', created_at: '' },

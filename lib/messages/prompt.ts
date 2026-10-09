@@ -28,6 +28,7 @@ Estos son sus últimos mensajes recibidos (no los repitas ni en contenido ni en 
 ${recentList}
 
 Escribe un mensaje breve (máximo 120 palabras), en español, en primera persona, como si tu yo futuro le escribiera hoy a ${profile.name}. No uses saludos genéricos tipo "Hola querido yo". Ve directo al mensaje.
+No firmes el mensaje ni agregues despedidas como «Con cariño» o «Tu yo de X años»: la firma la agrega el correo.
 
 ${SPANISH_MX_RULE}`;
 }
