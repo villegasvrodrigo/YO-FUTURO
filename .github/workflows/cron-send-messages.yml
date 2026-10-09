@@ -10,7 +10,7 @@ on:
 
 jobs:
   trigger:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Llamar a /api/cron/send-messages
         run: |
