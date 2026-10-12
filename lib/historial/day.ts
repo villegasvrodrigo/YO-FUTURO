@@ -196,3 +196,38 @@ export async function olderEntry(
   if (typeof date !== 'string' || typeof row?.content !== 'string') return null;
   return { date, content: row.content.trim() };
 }
+
+/** One earlier day of tasks, for Inicio's tasks card. */
+export interface TasksDay {
+  date: string;
+  tasks: HistoryTask[];
+}
+
+/**
+ * The person's closest day with tasks strictly before `before` ("YYYY-MM-DD"), with all its
+ * tasks in order, or null when there is none. Read only, one small query (a day has at most
+ * 3 tasks); meant for the signed-in user's own client. Throws on an invalid date or a failed
+ * read.
+ */
+export async function olderTasks(supabase: SupabaseClient, userId: string, before: string): Promise<TasksDay | null> {
+  assertValidDate(before);
+  const { data, error } = await supabase
+    .from('daily_tasks')
+    .select('id, task_date, position, description, completed')
+    .eq('user_id', userId)
+    .lt('task_date', before)
+    .order('task_date', { ascending: false })
+    .limit(3);
+  if (error) throw new Error(error.message);
+  const rows = ((data as (HistoryTask & { task_date?: unknown })[] | null) ?? []).filter(
+    (row) => typeof row?.task_date === 'string' && typeof row.description === 'string' && typeof row.completed === 'boolean'
+  );
+  if (rows.length === 0) return null;
+  // The 3 rows may reach into the day before: keep only the closest day's.
+  const date = rows[0].task_date as string;
+  const tasks = rows
+    .filter((row) => row.task_date === date)
+    .sort((a, b) => a.position - b.position)
+    .map(({ id, position, description, completed }) => ({ id, position, description, completed }));
+  return { date, tasks };
+}

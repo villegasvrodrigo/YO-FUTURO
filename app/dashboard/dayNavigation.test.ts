@@ -14,7 +14,7 @@ const D9 = { date: '2026-10-09', content: 'El 9' };
 const D5 = { date: '2026-10-05', content: 'El 5' };
 
 const run = (...actions: DayBrowserAction[]): DayBrowserState =>
-  actions.reduce(dayBrowserReducer, initialBrowserState(TODAY));
+  actions.reduce<DayBrowserState>((state, action) => dayBrowserReducer(state, action), initialBrowserState(TODAY));
 const shown = (state: DayBrowserState) => state.entries[state.index].date;
 
 describe('dayBrowserReducer', () => {

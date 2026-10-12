@@ -5,7 +5,7 @@ import type { DailyTask } from '@/lib/types';
 import { BottomNav } from '@/app/_components/BottomNav';
 import { isChatEnabledFor } from '@/lib/chat/access';
 import { CompletionRing } from './CompletionRing';
-import { TaskList, TaskListHint, TasksProvider } from './TaskList';
+import { TasksProvider } from './TaskList';
 import { DailyInsight, DailyInsightHint } from './DailyInsight';
 import { DailyMessage, PausedNotice } from './DailyMessage';
 import { messageDay } from '@/lib/messages/messageDay';
@@ -16,7 +16,7 @@ import { PreparingToday } from './PreparingToday';
 import { effectiveTimezone, isTodayMessage, localToday, type DayMessage } from '@/lib/daily/today';
 import { InsightOnTheWay } from './InsightOnTheWay';
 import { insightOnTheWay, tasksVersion } from './todayRefresh';
-import { InsightBrowser, MessageBrowser } from './DayBrowser';
+import { InsightBrowser, MessageBrowser, TasksBrowser } from './DayBrowser';
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -149,12 +149,9 @@ export default async function DashboardPage({ searchParams }: PageProps<'/dashbo
               <PreparingToday lastMessage={latestMessage} lastDay={latestMessageDay} />
             )}
 
+            {/* Today's tasks (checked as always), with arrows to earlier days' (read only). */}
             <section className="mt-10">
-              <h2 className="font-serif text-2xl text-parchment">Tus tareas de hoy</h2>
-              <TaskListHint />
-              <div className="mt-3 rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
-                <TaskList />
-              </div>
+              <TasksBrowser userId={user.id} today={today} />
             </section>
 
             <section className="mt-8">

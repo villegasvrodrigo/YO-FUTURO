@@ -263,6 +263,8 @@ describe('Inicio', () => {
       expect(html).toContain('Tu mensaje de hoy');
       expect(html).toContain('aria-label="Mensaje anterior"');
       expect(html).toContain('aria-label="Insight anterior"');
+      expect(html).toContain(`aria-label="${escaped('Tareas del día anterior')}"`);
+      expect(html).toContain('Tus tareas de hoy');
       expect(html).toContain('Tarea uno.');
       expect(html).toContain('type="checkbox"');
     });

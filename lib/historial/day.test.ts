@@ -6,6 +6,7 @@ import {
   messageOrInsightDates,
   neighborDay,
   olderEntry,
+  olderTasks,
   parseRequestedDay,
   readHistoryDay,
 } from './day';
@@ -185,5 +186,33 @@ describe('olderEntry', () => {
     db.failTables.add('daily_insights');
     await expect(olderEntry(client, ME, 'insight', '2026-10-12')).rejects.toThrow('daily_insights no responde');
     await expect(olderEntry(client, ME, 'message', 'ayer')).rejects.toThrow('fecha inválida');
+  });
+});
+
+describe('olderTasks', () => {
+  it("returns the closest earlier day with tasks, all of that day's in order and only them", async () => {
+    db.daily_tasks.push(
+      task(ME, '2026-10-08', 1, true),
+      task(ME, '2026-10-10', 3, false),
+      task(ME, '2026-10-10', 1, true),
+      task(ME, '2026-10-12', 1, false),
+      task(OTHER, '2026-10-11', 1, true)
+    );
+
+    const day = await olderTasks(client, ME, '2026-10-12');
+
+    expect(day?.date).toBe('2026-10-10');
+    expect(day?.tasks.map((t) => [t.position, t.completed])).toEqual([
+      [1, true],
+      [3, false],
+    ]);
+    await expect(olderTasks(client, ME, '2026-10-10')).resolves.toMatchObject({ date: '2026-10-08' });
+    await expect(olderTasks(client, ME, '2026-10-08')).resolves.toBeNull();
+  });
+
+  it('throws on a failed read and on an invalid date', async () => {
+    db.failTables.add('daily_tasks');
+    await expect(olderTasks(client, ME, '2026-10-12')).rejects.toThrow('daily_tasks no responde');
+    await expect(olderTasks(client, ME, '2026-13-01')).rejects.toThrow('fecha inválida');
   });
 });

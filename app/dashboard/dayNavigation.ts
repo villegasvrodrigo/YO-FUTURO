@@ -1,14 +1,17 @@
-import type { DayEntry } from '@/lib/historial/day';
-
-// Paging one of Inicio's cards (the message or the insight) through earlier days, each card
+// Paging one of Inicio's cards (the message, the insight or the tasks) through earlier days, each card
 // on its own. It starts at the entry Inicio shows (the newest one, never after today), so
 // every newer day is one already seen: going forward never needs a read, and it can never go
 // past today. Earlier days are read one at a time, one step ahead of the person, so the
 // arrow and the swipe answer at once.
 
-export interface DayBrowserState {
+/** Whatever a card shows for one day: at least, which day it is ("YYYY-MM-DD"). */
+export interface Dated {
+  date: string;
+}
+
+export interface DayBrowserState<E extends Dated = Dated> {
   // Newest first; entries[0] is the one Inicio started with.
-  entries: DayEntry[];
+  entries: E[];
   // Which entry the card shows.
   index: number;
   // True once a read found nothing earlier than the last entry.
@@ -21,18 +24,18 @@ export interface DayBrowserState {
   notice: boolean;
 }
 
-export type DayBrowserAction =
+export type DayBrowserAction<E extends Dated = Dated> =
   | { type: 'older' }
   | { type: 'newer' }
   | { type: 'latest' }
-  | { type: 'loaded'; entry: DayEntry | null }
+  | { type: 'loaded'; entry: E | null }
   | { type: 'failed' };
 
-export function initialBrowserState(entry: DayEntry): DayBrowserState {
+export function initialBrowserState<E extends Dated>(entry: E): DayBrowserState<E> {
   return { entries: [entry], index: 0, end: false, failed: false, wantOlder: false, notice: false };
 }
 
-export function dayBrowserReducer(state: DayBrowserState, action: DayBrowserAction): DayBrowserState {
+export function dayBrowserReducer<E extends Dated>(state: DayBrowserState<E>, action: DayBrowserAction<E>): DayBrowserState<E> {
   switch (action.type) {
     case 'older':
       if (state.index < state.entries.length - 1) return { ...state, index: state.index + 1, notice: false };

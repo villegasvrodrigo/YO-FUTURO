@@ -1,23 +1,43 @@
 'use client';
 
 import { useEffect, useLayoutEffect, useReducer, useRef } from 'react';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from '@/lib/supabase/browser';
-import { olderEntry, type DayEntry, type DayEntryKind } from '@/lib/historial/day';
+import { olderEntry, olderTasks, type DayEntry, type HistoryTask, type TasksDay } from '@/lib/historial/day';
+import { completedSummary } from '@/lib/historial/format';
 import { DailyInsight, shortInsightDate } from './DailyInsight';
+import { TaskList, TaskListHint, useDailyTasks } from './TaskList';
 import {
   canGoOlder,
   dayBrowserReducer,
   initialBrowserState,
   needsOlder,
   swipeDirection,
+  type Dated,
+  type DayBrowserAction,
   type DayBrowserState,
 } from './dayNavigation';
 
 export const LOAD_OLDER_FAILED_COPY = 'No se pudo cargar el día anterior.';
 
+// How each card reads the day before a date: read only, with the person's own session.
+const LOADERS = {
+  message: (supabase: SupabaseClient, userId: string, before: string) => olderEntry(supabase, userId, 'message', before),
+  insight: (supabase: SupabaseClient, userId: string, before: string) => olderEntry(supabase, userId, 'insight', before),
+  tasks: (supabase: SupabaseClient, userId: string, before: string) => olderTasks(supabase, userId, before),
+};
+
+type Kind = keyof typeof LOADERS;
+type EntryOf<K extends Kind> = NonNullable<Awaited<ReturnType<(typeof LOADERS)[K]>>>;
+
 /** The card's state and moves; earlier days are read in the browser, read only, one ahead. */
-function useDayBrowser(kind: DayEntryKind, userId: string, initial: DayEntry) {
-  const [state, dispatch] = useReducer(dayBrowserReducer, initial, initialBrowserState);
+function useDayBrowser<K extends Kind>(kind: K, userId: string, initial: EntryOf<K>) {
+  type E = EntryOf<K>;
+  const [state, dispatch] = useReducer(
+    (current: DayBrowserState<E>, action: DayBrowserAction<E>) => dayBrowserReducer(current, action),
+    initial,
+    (entry: E) => initialBrowserState(entry)
+  );
   const inFlight = useRef(false);
   const need = needsOlder(state);
   const lastDate = state.entries[state.entries.length - 1].date;
@@ -25,7 +45,7 @@ function useDayBrowser(kind: DayEntryKind, userId: string, initial: DayEntry) {
   useEffect(() => {
     if (!need || inFlight.current) return;
     inFlight.current = true;
-    olderEntry(createClient(), userId, kind, lastDate).then(
+    (LOADERS[kind](createClient(), userId, lastDate) as Promise<E | null>).then(
       (entry) => {
         inFlight.current = false;
         dispatch({ type: 'loaded', entry });
@@ -79,7 +99,17 @@ function Arrow({
   );
 }
 
-function Arrows({ noun, state, older, newer }: { noun: string; state: DayBrowserState; older: () => void; newer: () => void }) {
+function Arrows<E extends Dated>({
+  noun,
+  state,
+  older,
+  newer,
+}: {
+  noun: string;
+  state: DayBrowserState<E>;
+  older: () => void;
+  newer: () => void;
+}) {
   return (
     <div className="-mr-2 flex shrink-0 items-center">
       <Arrow direction="prev" label={`${noun} anterior`} disabled={!canGoOlder(state)} busy={state.wantOlder} onClick={older} />
@@ -93,13 +123,13 @@ function Arrows({ noun, state, older, newer }: { noun: string; state: DayBrowser
  * notice if the earlier day couldn't be read, "Volver a hoy" (or to the newest one, when
  * Inicio started on an earlier day) away from the start, otherwise `atStart`.
  */
-function SubLine({
+function SubLine<E extends Dated>({
   state,
   startIsToday,
   latest,
   atStart,
 }: {
-  state: DayBrowserState;
+  state: DayBrowserState<E>;
   startIsToday: boolean;
   latest: () => void;
   atStart: React.ReactNode;
@@ -226,6 +256,83 @@ export function InsightBrowser({ userId, today, initial }: { userId: string; tod
       <SwipeCard dayKey={entry.date} older={older} newer={newer}>
         <div className="mt-2">
           <DailyInsight insight={{ insightDate: entry.date, content: entry.content }} showDate={false} />
+        </div>
+      </SwipeCard>
+    </>
+  );
+}
+
+/** An earlier day's tasks as they were left: read only, nothing here can be checked. */
+export function PastTasks({ tasks }: { tasks: HistoryTask[] }) {
+  const done = tasks.filter((task) => task.completed).length;
+  return (
+    <>
+      <ul className="-my-3 flex flex-col gap-1">
+        {tasks.map((task) => (
+          // Same row as today's list (TaskList), so the card keeps its size between days.
+          <li key={task.id} className="flex min-h-11 items-start gap-3.5 py-3">
+            <span
+              aria-hidden="true"
+              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${
+                task.completed ? 'border-brass bg-brass' : 'border-brass/40 bg-transparent'
+              }`}
+            >
+              {task.completed && (
+                <svg viewBox="0 0 12 12" className="h-3 w-3 text-ink" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M2.5 6.5l2.5 2.5 4.5-5.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </span>
+            <span className={`text-[15px] leading-relaxed ${task.completed ? 'text-mist line-through' : 'text-parchment'}`}>
+              <span className="sr-only">{task.completed ? 'Completada: ' : 'Sin completar: '}</span>
+              {task.description}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-5 font-mono text-xs text-mist">{completedSummary(done, tasks.length)}</p>
+    </>
+  );
+}
+
+/**
+ * Inicio's tasks section, with its own arrows (and swipe) to the tasks of earlier days. Today
+ * is the usual list, checked as always (and the only one the ring above counts); earlier days
+ * are read only, with how many were completed.
+ */
+export function TasksBrowser({ userId, today }: { userId: string; today: string }) {
+  const { tasks: todayTasks } = useDailyTasks();
+  // Today is always the start, with or without tasks yet: its list comes from TasksProvider.
+  const { state, entry, older, newer, latest } = useDayBrowser('tasks', userId, { date: today, tasks: [] } as TasksDay);
+  const isToday = state.index === 0;
+  const date = shortInsightDate(entry.date);
+
+  return (
+    <>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0" aria-live="polite">
+          <h2 className="font-serif text-2xl text-parchment">{isToday ? 'Tus tareas de hoy' : `Tus tareas del ${date}`}</h2>
+          <SubLine state={state} startIsToday latest={latest} atStart={<time dateTime={entry.date}>{date}</time>} />
+        </div>
+        <Arrows noun="Tareas del día" state={state} older={older} newer={newer} />
+      </div>
+      {isToday ? (
+        <TaskListHint />
+      ) : (
+        // Holds the hint's place (when today has one), so the card below doesn't move.
+        todayTasks.length > 0 && (
+          <p className="mt-1 text-sm text-parchment/70">
+            <span aria-hidden="true" className="mr-1.5 text-brass">
+              →
+            </span>
+            Así quedaron ese día.
+          </p>
+        )
+      )}
+
+      <SwipeCard dayKey={entry.date} older={older} newer={newer}>
+        <div className="mt-3 rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
+          {isToday ? <TaskList /> : <PastTasks tasks={entry.tasks} />}
         </div>
       </SwipeCard>
     </>
