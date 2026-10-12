@@ -11,9 +11,11 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/progreso',
 }));
 vi.mock('@/lib/tasks/history', () => ({ getFullTaskHistory: vi.fn() }));
+vi.mock('@/lib/historial/day', () => ({ messageOrInsightDates: vi.fn(async () => new Set<string>()) }));
 
 const { default: ProgresoPage } = await import('./page');
 const { getFullTaskHistory } = await import('@/lib/tasks/history');
+const { messageOrInsightDates } = await import('@/lib/historial/day');
 
 // 2026-09-25 03:00 UTC: still Sep 24 in Mexico City, already Sep 25 in UTC+14.
 const NOW = new Date('2026-09-25T03:00:00Z');
@@ -83,5 +85,31 @@ describe('Progreso', () => {
     const html = renderToString(await result);
 
     expect(html).not.toContain('Días cumplidos');
+  });
+
+  it("links the shown month's days with a message or an insight to the history", async () => {
+    vi.mocked(getFullTaskHistory).mockResolvedValue([{ task_date: '2026-09-23', completed: true }]);
+    vi.mocked(messageOrInsightDates).mockResolvedValueOnce(new Set(['2026-09-10']));
+
+    const result = page();
+    await new Promise((resolve) => setImmediate(resolve));
+    releaseProfile({ data: { timezone: 'America/Mexico_City' }, error: null });
+    const html = renderToString(await result);
+
+    expect(messageOrInsightDates).toHaveBeenCalledWith(expect.anything(), 'u1', '2026-09-01', '2026-09-30');
+    expect(html).toContain('href="/historial?dia=2026-09-10"');
+    expect(html).toContain('href="/historial?dia=2026-09-23"');
+  });
+
+  it('does not look for message or insight days when there is nothing to show', async () => {
+    vi.mocked(getFullTaskHistory).mockResolvedValue([]);
+    vi.mocked(messageOrInsightDates).mockClear();
+
+    const result = page();
+    await new Promise((resolve) => setImmediate(resolve));
+    releaseProfile({ data: { timezone: 'America/Mexico_City' }, error: null });
+    await result;
+
+    expect(messageOrInsightDates).not.toHaveBeenCalled();
   });
 });

@@ -20,6 +20,13 @@ describe('DailyInsight (server render)', () => {
     expect(html).not.toContain(escaped(NO_INSIGHT_COPY));
   });
 
+  it('leaves the date out when asked (the history already shows the day)', () => {
+    const html = renderToString(<DailyInsight insight={INSIGHT} showDate={false} />);
+
+    expect(html).toContain(escaped(INSIGHT.content));
+    expect(html).not.toContain('<time');
+  });
+
   it('shows the friendly message when there is no insight', () => {
     const html = renderToString(<DailyInsight insight={null} />);
 

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { CalendarDay, ProgressData } from '@/lib/tasks/progress';
+import { historyHref } from '@/lib/historial/format';
 
 export const NO_DATA_COPY =
   'Aquí verás tu racha y cómo vas con tus tareas. Aparecerá en cuanto tu yo futuro te mande las primeras y marques alguna.';
@@ -41,6 +42,15 @@ function dayLabel(day: CalendarDay): string {
   if (day.isFuture) return prefix;
   if (day.total === 0) return `${prefix}: sin tareas`;
   return `${prefix}: ${day.done} de ${day.total} tareas completadas`;
+}
+
+/**
+ * Whether the day leads to its page in the history: a past day (not today, which is on
+ * Inicio) with tasks, or with a message or an insight (`historyDays`).
+ */
+export function linksToHistory(day: CalendarDay, historyDays: ReadonlySet<string> | undefined): boolean {
+  if (!day.inMonth || day.isFuture || day.isToday) return false;
+  return day.total > 0 || (historyDays?.has(day.date) ?? false);
 }
 
 const LEGEND: { label: string; sample: CalendarDay }[] = [
@@ -99,10 +109,18 @@ function MonthArrow({ month, direction }: { month: string | null; direction: 'pr
 /**
  * The Progreso screen: three numbers (current streak, best streak, fulfilled days) and the
  * calendar of one month, weeks starting on Monday, each day colored by how many tasks were
- * checked, today framed, with arrows to the months before. `progress` null means there is
- * nothing to show yet (no tasks, no timezone, or a failed read): only the friendly message.
+ * checked, today framed, with arrows to the months before. Past days with something to see
+ * lead to that day of the history (`historyDays`: the month's days with a message or an
+ * insight). `progress` null means there is nothing to show yet (no tasks, no timezone, or a
+ * failed read): only the friendly message.
  */
-export function ProgressView({ progress }: { progress: ProgressData | null }) {
+export function ProgressView({
+  progress,
+  historyDays,
+}: {
+  progress: ProgressData | null;
+  historyDays?: ReadonlySet<string>;
+}) {
   return (
     // Extra room at the bottom (more than the dashboard's pb-40) so the floating bottom bar
     // never covers the calendar legend, the last thing on the page.
@@ -147,24 +165,33 @@ export function ProgressView({ progress }: { progress: ProgressData | null }) {
                 </div>
                 {progress.calendar.weeks.map((week, w) => (
                   <div role="row" key={w} className="contents">
-                    {week.map((day) =>
-                      day.inMonth ? (
-                        <span
-                          key={day.date}
-                          role="gridcell"
-                          aria-label={dayLabel(day)}
-                          title={dayLabel(day)}
-                          className={`flex aspect-square items-center justify-center rounded-md font-mono text-sm ${dayClass(day)} ${
-                            day.isToday ? 'ring-2 ring-parchment/70 ring-offset-2 ring-offset-dusk-2' : ''
-                          }`}
-                        >
-                          {day.day}
+                    {week.map((day) => {
+                      if (!day.inMonth) {
+                        // Days of the neighbouring months only fill the grid.
+                        return <span key={day.date} role="gridcell" aria-hidden="true" />;
+                      }
+                      const className = `flex aspect-square items-center justify-center rounded-md font-mono text-sm ${dayClass(day)} ${
+                        day.isToday ? 'ring-2 ring-parchment/70 ring-offset-2 ring-offset-dusk-2' : ''
+                      }`;
+                      return linksToHistory(day, historyDays) ? (
+                        <span key={day.date} role="gridcell">
+                          {/* Not prefetched: a month has up to 30 of these. */}
+                          <Link
+                            href={historyHref(day.date)}
+                            prefetch={false}
+                            aria-label={`${dayLabel(day)}. Ver ese día`}
+                            title={dayLabel(day)}
+                            className={`${className} transition-opacity hover:opacity-80 active:opacity-70`}
+                          >
+                            {day.day}
+                          </Link>
                         </span>
                       ) : (
-                        // Days of the neighbouring months only fill the grid.
-                        <span key={day.date} role="gridcell" aria-hidden="true" />
-                      )
-                    )}
+                        <span key={day.date} role="gridcell" aria-label={dayLabel(day)} title={dayLabel(day)} className={className}>
+                          {day.day}
+                        </span>
+                      );
+                    })}
                   </div>
                 ))}
               </div>

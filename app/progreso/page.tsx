@@ -5,6 +5,8 @@ import { getFullTaskHistory } from '@/lib/tasks/history';
 import { buildProgress, type ProgressData } from '@/lib/tasks/progress';
 import { BottomNav } from '@/app/_components/BottomNav';
 import { isChatEnabledFor } from '@/lib/chat/access';
+import { messageOrInsightDates } from '@/lib/historial/day';
+import { daysInMonth } from '@/lib/tasks/dates';
 import { ProgressView } from './ProgressView';
 
 // The time zone that is furthest ahead (UTC+14): no one's local date is ever later than its.
@@ -42,9 +44,16 @@ export default async function ProgresoPage({ searchParams }: PageProps<'/progres
     }
   }
 
+  // The days of the shown month with a message or an insight (the calendar already knows the
+  // ones with tasks): those days lead to that day of the history too. Never fails the screen.
+  const month = progress?.calendar.month;
+  const historyDays = month
+    ? await messageOrInsightDates(supabase, user.id, `${month}-01`, `${month}-${String(daysInMonth(month)).padStart(2, '0')}`)
+    : undefined;
+
   return (
     <>
-      <ProgressView progress={progress} />
+      <ProgressView progress={progress} historyDays={historyDays} />
       <BottomNav chatEnabled={isChatEnabledFor(user.id)} />
     </>
   );

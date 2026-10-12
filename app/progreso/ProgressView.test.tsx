@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToString } from 'react-dom/server';
 import { buildProgress, type TaskProgressRow } from '@/lib/tasks/progress';
-import { monthTitle, NO_DATA_COPY, ProgressView } from './ProgressView';
+import { linksToHistory, monthTitle, NO_DATA_COPY, ProgressView } from './ProgressView';
 
 const TODAY = '2026-09-22';
 
@@ -61,8 +61,9 @@ describe('ProgressView (server render)', () => {
   it("draws one square per day of the month, with each day's number", () => {
     const html = render();
 
-    expect(count(html, 'role="gridcell" aria-label=')).toBe(30);
-    expect(html).toContain('aria-label="21 sep: 2 de 3 tareas completadas"');
+    // Days that lead to the history are drawn as a link inside the cell.
+    expect(count(html, 'role="gridcell" aria-label=') + count(html, 'role="gridcell"><a')).toBe(30);
+    expect(html).toContain('aria-label="21 sep: 2 de 3 tareas completadas. Ver ese día"');
     expect(html).toContain('aria-label="19 sep: sin tareas"');
     expect(html).toContain('aria-label="30 sep"');
   });
@@ -98,6 +99,39 @@ describe('ProgressView (server render)', () => {
     expect(html).toContain('>Agosto 2026</h2>');
     expect(html).toContain('href="/progreso?mes=2026-09"');
     expect(html).not.toContain('Mes anterior');
+  });
+});
+
+describe('calendar days that lead to the history', () => {
+  it('past days with tasks link to that day of the history, without prefetching', () => {
+    const html = render();
+
+    expect(html).toContain('href="/historial?dia=2026-09-21"');
+    expect(html).toContain('href="/historial?dia=2026-09-20"');
+    expect(count(html, 'href="/historial?dia=')).toBe(2);
+  });
+
+  it('past days with only a message or an insight link too', () => {
+    const html = renderToString(
+      <ProgressView progress={buildProgress(TASKS, TODAY, undefined)} historyDays={new Set(['2026-09-05', '2026-09-30'])} />
+    );
+
+    expect(html).toContain('href="/historial?dia=2026-09-05"');
+    // Sep 30 is in the future: never a link.
+    expect(html).not.toContain('href="/historial?dia=2026-09-30"');
+  });
+
+  it('today, future days, days with nothing and days of other months are not links', () => {
+    const base = { day: 1, inMonth: true, isToday: false, isFuture: false, total: 0, done: 0 };
+    const empty = new Set<string>();
+
+    expect(linksToHistory({ ...base, date: '2026-09-22', isToday: true, total: 3 }, empty)).toBe(false);
+    expect(linksToHistory({ ...base, date: '2026-09-23', isFuture: true }, new Set(['2026-09-23']))).toBe(false);
+    expect(linksToHistory({ ...base, date: '2026-09-19' }, empty)).toBe(false);
+    expect(linksToHistory({ ...base, date: '2026-09-19' }, undefined)).toBe(false);
+    expect(linksToHistory({ ...base, date: '2026-08-31', inMonth: false, total: 3 }, empty)).toBe(false);
+    expect(linksToHistory({ ...base, date: '2026-09-19', total: 3 }, undefined)).toBe(true);
+    expect(linksToHistory({ ...base, date: '2026-09-19' }, new Set(['2026-09-19']))).toBe(true);
   });
 });
 

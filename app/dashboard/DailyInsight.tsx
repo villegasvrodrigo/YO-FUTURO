@@ -28,9 +28,18 @@ export function DailyInsightHint({ insight }: { insight: LatestInsight | null })
 /**
  * The "Daily insight" card of the dashboard: the user's most recent insight with its date
  * (it may be from an earlier day, and the date makes that clear), or a friendly message
- * when there is none yet or it couldn't be read.
+ * when there is none yet or it couldn't be read. `showDate` false leaves the date out, for
+ * the history, where the day is already in the title.
  */
-export function DailyInsight({ insight, paused = false }: { insight: LatestInsight | null; paused?: boolean }) {
+export function DailyInsight({
+  insight,
+  paused = false,
+  showDate = true,
+}: {
+  insight: LatestInsight | null;
+  paused?: boolean;
+  showDate?: boolean;
+}) {
   if (!insight) {
     return (
       <div className="rounded border-t-2 border-rule bg-dusk-2 px-7 py-6">
@@ -39,7 +48,7 @@ export function DailyInsight({ insight, paused = false }: { insight: LatestInsig
     );
   }
 
-  const date = shortInsightDate(insight.insightDate);
+  const date = showDate ? shortInsightDate(insight.insightDate) : '';
   return (
     // Same side margin as the other dashboard cards (px-7); more room above and below and a
     // larger text than theirs, so this one reads slower.
