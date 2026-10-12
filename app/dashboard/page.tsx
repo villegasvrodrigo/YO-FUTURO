@@ -16,6 +16,7 @@ import { PreparingToday } from './PreparingToday';
 import { effectiveTimezone, isTodayMessage, localToday, type DayMessage } from '@/lib/daily/today';
 import { InsightOnTheWay } from './InsightOnTheWay';
 import { insightOnTheWay, tasksVersion } from './todayRefresh';
+import { InsightBrowser, MessageBrowser } from './DayBrowser';
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -102,11 +103,12 @@ export default async function DashboardPage({ searchParams }: PageProps<'/dashbo
     : null;
   // Right after the app creates today's message, its insight is still being written: Inicio
   // says so and refreshes itself until it arrives (InsightOnTheWay).
+  const today = localToday(now, timezone);
   const waitingForInsight = insightOnTheWay({
     hasTodayMessage,
     messageGeneratedAt: latestMessage?.generated_at,
     latestInsightDate: latestInsight?.insightDate,
-    today: localToday(now, timezone),
+    today,
     now,
   });
 
@@ -132,7 +134,16 @@ export default async function DashboardPage({ searchParams }: PageProps<'/dashbo
 
             {profile?.delivery_paused === true && <PausedNotice />}
 
-            {hasTodayMessage ? (
+            {/* Today's message, with arrows to the earlier days' (read only, right here). Keyed
+                by its day, so a refreshed Inicio starts the card over on the new one. */}
+            {hasTodayMessage && latestMessage && latestMessageDay ? (
+              <MessageBrowser
+                key={latestMessageDay.date}
+                userId={user.id}
+                today={today}
+                initial={{ date: latestMessageDay.date, content: latestMessage.content }}
+              />
+            ) : hasTodayMessage ? (
               <DailyMessage message={latestMessage} day={latestMessageDay} />
             ) : (
               <PreparingToday lastMessage={latestMessage} lastDay={latestMessageDay} />
@@ -150,7 +161,19 @@ export default async function DashboardPage({ searchParams }: PageProps<'/dashbo
               <h2 className="font-serif text-2xl text-parchment">Daily insight</h2>
               {!waitingForInsight && <DailyInsightHint insight={latestInsight} />}
               <div className="mt-3">
-                {waitingForInsight ? <InsightOnTheWay /> : <DailyInsight insight={latestInsight} />}
+                {waitingForInsight ? (
+                  <InsightOnTheWay />
+                ) : latestInsight ? (
+                  // The newest insight, with its own arrows to the earlier ones.
+                  <InsightBrowser
+                    key={latestInsight.insightDate}
+                    userId={user.id}
+                    today={today}
+                    initial={{ date: latestInsight.insightDate, content: latestInsight.content }}
+                  />
+                ) : (
+                  <DailyInsight insight={null} />
+                )}
               </div>
             </section>
 

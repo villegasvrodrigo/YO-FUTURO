@@ -154,3 +154,45 @@ export async function messageOrInsightDates(
     return new Set();
   }
 }
+
+// What Inicio's cards can page through, each on its own: the daily messages or the insights.
+export type DayEntryKind = 'message' | 'insight';
+
+export interface DayEntry {
+  // The person's local date, "YYYY-MM-DD".
+  date: string;
+  content: string;
+}
+
+const ENTRY_SOURCES: Record<DayEntryKind, { table: string; column: string }> = {
+  message: { table: 'messages', column: 'message_date' },
+  insight: { table: 'daily_insights', column: 'insight_date' },
+};
+
+/**
+ * The person's closest message or insight (`kind`) dated strictly before `before`
+ * ("YYYY-MM-DD"), or null when there is none. Read only, one small query; meant for the
+ * signed-in user's own client (browser or server), so row-level security keeps it to their
+ * own rows. Throws on an invalid date or a failed read.
+ */
+export async function olderEntry(
+  supabase: SupabaseClient,
+  userId: string,
+  kind: DayEntryKind,
+  before: string
+): Promise<DayEntry | null> {
+  assertValidDate(before);
+  const { table, column } = ENTRY_SOURCES[kind];
+  const { data, error } = await supabase
+    .from(table)
+    .select(`${column}, content`)
+    .eq('user_id', userId)
+    .lt(column, before)
+    .order(column, { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  const row = (data as unknown as Record<string, unknown>[] | null)?.[0];
+  const date = row?.[column];
+  if (typeof date !== 'string' || typeof row?.content !== 'string') return null;
+  return { date, content: row.content.trim() };
+}

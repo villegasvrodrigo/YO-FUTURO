@@ -5,6 +5,7 @@ import {
   hasContent,
   messageOrInsightDates,
   neighborDay,
+  olderEntry,
   parseRequestedDay,
   readHistoryDay,
 } from './day';
@@ -156,5 +157,33 @@ describe('messageOrInsightDates', () => {
 
     await expect(messageOrInsightDates(client, ME, '2026-10-01', '2026-10-31')).resolves.toEqual(new Set());
     expect(console.error).toHaveBeenCalled();
+  });
+});
+
+describe('olderEntry', () => {
+  beforeEach(() => {
+    db.messages.push(
+      { user_id: ME, message_date: '2026-10-05', content: ' El 5 ' },
+      { user_id: ME, message_date: '2026-10-09', content: 'El 9' },
+      { user_id: OTHER, message_date: '2026-10-10', content: 'Ajeno' }
+    );
+    db.daily_insights.push({ user_id: ME, insight_date: '2026-10-07', content: 'Insight del 7' });
+  });
+
+  it("returns this person's closest message before the date", async () => {
+    await expect(olderEntry(client, ME, 'message', '2026-10-12')).resolves.toEqual({ date: '2026-10-09', content: 'El 9' });
+    await expect(olderEntry(client, ME, 'message', '2026-10-09')).resolves.toEqual({ date: '2026-10-05', content: 'El 5' });
+    await expect(olderEntry(client, ME, 'message', '2026-10-05')).resolves.toBeNull();
+  });
+
+  it('reads insights on their own, apart from messages', async () => {
+    await expect(olderEntry(client, ME, 'insight', '2026-10-12')).resolves.toEqual({ date: '2026-10-07', content: 'Insight del 7' });
+    await expect(olderEntry(client, ME, 'insight', '2026-10-07')).resolves.toBeNull();
+  });
+
+  it('throws on a failed read and on an invalid date', async () => {
+    db.failTables.add('daily_insights');
+    await expect(olderEntry(client, ME, 'insight', '2026-10-12')).rejects.toThrow('daily_insights no responde');
+    await expect(olderEntry(client, ME, 'message', 'ayer')).rejects.toThrow('fecha inválida');
   });
 });

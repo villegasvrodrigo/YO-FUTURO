@@ -251,6 +251,22 @@ describe('Inicio', () => {
       expect(html).not.toContain('El insight de ayer.');
     });
 
+    it("today's message and insight each get their own arrows; the tasks stay today's, with checkboxes", async () => {
+      vi.mocked(getLatestInsight).mockResolvedValue({ insightDate: '2026-10-04', content: 'El insight de hoy.' });
+
+      const html = await open(
+        { id: 'm', content: 'El de hoy.', generated_at: '2026-10-04T14:00:00Z', message_date: '2026-10-04' },
+        false,
+        [task('t1', 1, 'Tarea uno.')]
+      );
+
+      expect(html).toContain('Tu mensaje de hoy');
+      expect(html).toContain('aria-label="Mensaje anterior"');
+      expect(html).toContain('aria-label="Insight anterior"');
+      expect(html).toContain('Tarea uno.');
+      expect(html).toContain('type="checkbox"');
+    });
+
     it("as soon as today's insight exists, it is shown instead of the waiting line", async () => {
       vi.mocked(getLatestInsight).mockResolvedValue({ insightDate: '2026-10-04', content: 'El insight de hoy.' });
 
